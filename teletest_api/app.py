@@ -132,27 +132,28 @@ async def press_button(req: PressButtonRequest) -> BotResponse:
         # For now, let's assume direct .click() is okay. If not, one would re-fetch:
         # message = await current_client.get_messages(entity, ids=message.id)
 
-        async with current_client.conversation(entity, timeout=req.timeout_sec) as conv:
-            try:
-                # Ensure the message object uses the current client for its operations
-                # One way is to ensure methods like message.click() are called on a message
-                # that is aware of 'current_client', or that client is passed if API allows.
-                # Telethon's message.click() uses the client instance that the message object
-                # was created with. If current_client is a temporary one, and message was fetched
-                # by global client (or vice-versa), this could be an issue.
-                # A simple way to ensure correctness is to re-fetch the message with current_client
-                # if we are using a temporary client or if there's doubt.
-                # However, for simplicity, let's try direct click first.
-                # If issues arise, one would do:
-                # if current_client is not client: # i.e., it's a temporary client
-                #    message = await current_client.get_messages(await current_client.get_input_entity(req.bot_username), ids=message.id)
+        try:
+            async with current_client.conversation(entity, timeout=req.timeout_sec) as conv:
+                try:
+                    # Ensure the message object uses the current client for its operations
+                    # One way is to ensure methods like message.click() are called on a message
+                    # that is aware of 'current_client', or that client is passed if API allows.
+                    # Telethon's message.click() uses the client instance that the message object
+                    # was created with. If current_client is a temporary one, and message was fetched
+                    # by global client (or vice-versa), this could be an issue.
+                    # A simple way to ensure correctness is to re-fetch the message with current_client
+                    # if we are using a temporary client or if there's doubt.
+                    # However, for simplicity, let's try direct click first.
+                    # If issues arise, one would do:
+                    # if current_client is not client: # i.e., it's a temporary client
+                    #    message = await current_client.get_messages(await current_client.get_input_entity(req.bot_username), ids=message.id)
 
-                await message.click(text=req.button_text, data=req.callback_data)
-            except Exception as e:
-                raise HTTPException(status_code=400, detail=f"Failed to press button: {e}")
-            try:
-                response = await conv.get_response()
-        except asyncio.TimeoutError:
+                    await message.click(text=req.button_text, data=req.callback_data)
+                except Exception as e: # Catches errors specifically from message.click()
+                    raise HTTPException(status_code=400, detail=f"Failed to press button: {e}")
+                
+                response = await conv.get_response() # Covered by the outer timeout handler
+        except asyncio.TimeoutError: # Catches timeout from the conversation
             raise HTTPException(status_code=504, detail="Timeout waiting for bot response")
 
     return BotResponse(
