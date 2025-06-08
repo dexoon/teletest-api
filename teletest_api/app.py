@@ -1,6 +1,7 @@
 import os
 import asyncio
 from typing import List, Optional
+from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query
@@ -17,6 +18,8 @@ from .models import (
     MessageButton,
     TelegramCredentialsRequest,
 )
+
+load_dotenv()  # Load environment variables from .env file
 
 # Default credentials from environment variables
 DEFAULT_API_ID = os.getenv("TELEGRAM_API_ID")
