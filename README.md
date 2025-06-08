@@ -4,7 +4,15 @@ A small FastAPI service for testing Telegram bots with a real user account via T
 
 ## Usage
 
-Set the following environment variables with credentials from your Telegram test account:
+1.  **Set up environment variables:**
+    You can set the following environment variables directly in your shell, or create a `.env` file in the project root.
+    An example `.env.example` file is provided. Copy it to `.env` and fill in your credentials:
+    ```bash
+    cp .env.example .env
+    # Now edit .env with your credentials
+    ```
+
+    Required variables:
 
 - `TELEGRAM_API_ID` – your API ID
 - `TELEGRAM_API_HASH` – your API hash
@@ -15,9 +23,9 @@ To obtain the session string you can run the helper script:
 ```bash
 python generate_session.py
 ```
-Follow the prompts to log in and the script will output the string to use.
+Follow the prompts to log in and the script will output the string to use. Add this string to your `.env` file or set it as an environment variable.
 
-Then run the service:
+2.  **Run the service:**
 
 ```bash
 python -m teletest_api
