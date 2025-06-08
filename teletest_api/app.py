@@ -175,7 +175,7 @@ async def get_messages(
         messages = await current_client.get_messages(entity, limit=limit)
         msgs: List[BotResponse] = []
         for m in reversed(messages):
-        msgs.append(BotResponse(message_text=m.raw_text, reply_markup=_parse_buttons(m)))
+            msgs.append(BotResponse(message_text=m.raw_text, reply_markup=_parse_buttons(m)))
     return GetMessagesResponse(messages=msgs)
 
 
