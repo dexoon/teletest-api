@@ -95,9 +95,9 @@ async def send_message(req: SendMessageRequest) -> BotResponse:
 
     async with get_telegram_client(api_id, api_hash, session_string) as current_client:
         entity = await current_client.get_input_entity(req.bot_username)
-        async with current_client.conversation(entity, timeout=req.timeout_sec) as conv:
-            await conv.send_message(req.message_text)
-            try:
+        try:
+            async with current_client.conversation(entity, timeout=req.timeout_sec) as conv:
+                await conv.send_message(req.message_text)
                 response = await conv.get_response()
         except asyncio.TimeoutError:
             raise HTTPException(status_code=504, detail="Timeout waiting for bot response")
