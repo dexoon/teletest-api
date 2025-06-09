@@ -21,7 +21,7 @@ def setup_env(monkeypatch):
         monkeypatch.setenv("TELEGRAM_SESSION_STRING", "session")
         monkeypatch.setattr("telethon.TelegramClient", FakeTelegramClient)
         monkeypatch.setattr("telethon.sessions.StringSession", lambda s: s)
-    import teletest_api.app as app_module
+    import src.app as app_module
 
     importlib.reload(app_module)
     yield app_module

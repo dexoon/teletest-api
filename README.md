@@ -28,7 +28,7 @@ Follow the prompts to log in and the script will output the string to use. Add t
 2.  **Run the service:**
 
 ```bash
-python -m teletest_api
+python main.py
 ```
 
 Alternatively you can run the service with Docker:
