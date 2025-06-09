@@ -1,6 +1,5 @@
-def main():
-    print("Hello from teletest-api!")
-
+import uvicorn
+from src.app import app
 
 if __name__ == "__main__":
-    main()
+    uvicorn.run(app, host="0.0.0.0", port=8000)
