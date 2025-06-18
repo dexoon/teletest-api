@@ -82,7 +82,8 @@ class FakeTelegramClient:
     async def disconnect(self):
         self._connected = False
 
-    def is_connected(self):
+    @property
+    def is_connected(self) -> bool:
         return self._connected
 
     async def get_input_entity(self, username):

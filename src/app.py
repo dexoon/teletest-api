@@ -51,8 +51,8 @@ async def get_telegram_client(
     else:
         # Not all custom credentials provided or none provided, use the global client
         # Ensure global client is started and connected (should be by startup_event)
-        if not client.is_connected(): # Defensive check
-            await client.start() # Ensure it's started if somehow not connected
+        if not client.is_connected:  # Defensive check
+            await client.start()  # Ensure it's started if somehow not connected
         yield client
         # Global client's lifecycle is managed by startup/shutdown events
 
