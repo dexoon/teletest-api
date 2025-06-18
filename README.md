@@ -42,6 +42,13 @@ docker run -p 8000:8000 \
   teletest-api
 ```
 
+Docker images are automatically published to
+GitHub Container Registry. You can pull the latest image with:
+
+```bash
+docker pull ghcr.io/<OWNER>/<REPO>:latest
+```
+
 The service exposes a few endpoints to interact with bots:
 
 - `POST /send-message` – send a text message to a bot and wait for a reply

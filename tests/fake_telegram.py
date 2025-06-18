@@ -74,12 +74,17 @@ class FakeTelegramClient:
         self.bot = SimpleBot()
         self.dialogs: Dict[str, List[FakeMessage]] = {}
         self.current_conv: Optional[FakeConversation] = None
+        self._connected = False
 
     async def start(self):
-        pass
+        self._connected = True
 
     async def disconnect(self):
-        pass
+        self._connected = False
+
+    @property
+    def is_connected(self) -> bool:
+        return self._connected
 
     async def get_input_entity(self, username):
         return username
