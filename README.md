@@ -46,7 +46,7 @@ Docker images are automatically published to
 GitHub Container Registry. You can pull the latest image with:
 
 ```bash
-docker pull ghcr.io/<OWNER>/<REPO>:latest
+docker pull ghcr.io/dexoon/teletest-api:latest
 ```
 
 The service exposes a few endpoints to interact with bots:
