@@ -152,20 +152,40 @@ async def send_message(
     api_hash = creds.api_hash
     session_string = creds.session_string
 
+    api_id = creds.api_id
+    api_hash = creds.api_hash
+    session_string = creds.session_string
+    
+    bot_responses: List[BotResponse] = []
+
     async with get_telegram_client(api_id, api_hash, session_string) as current_client:
         entity = await current_client.get_input_entity(req.bot_username)
         try:
             async with current_client.conversation(entity, timeout=req.timeout_sec) as conv:
                 await conv.send_message(req.message_text)
-                response = await conv.get_response()
+                # Loop to collect responses
+                while True:
+                    try:
+                        # Use a short timeout for each attempt to get a response.
+                        # This allows the loop to iterate or exit if no immediate message,
+                        # while the overall operation is bounded by req.timeout_sec.
+                        response = await conv.get_response(timeout=1.0) # e.g., 1 second
+                        bot_responses.append(BotResponse(
+                            response_type=ResponseType.MESSAGE,
+                            message_id=response.id,
+                            message_text=response.raw_text,
+                            reply_markup=_parse_buttons(response),
+                        ))
+                    except asyncio.TimeoutError:
+                        # This timeout means conv.get_response(timeout=1.0) found no message in 1s.
+                        # Break from this inner loop.
+                        break 
         except asyncio.TimeoutError:
-            return []  # Return empty list on timeout
-    return [BotResponse(
-        response_type=ResponseType.MESSAGE,
-        message_id=response.id,
-        message_text=response.raw_text,
-        reply_markup=_parse_buttons(response),
-    )]
+            # This timeout is for the entire conversation (req.timeout_sec).
+            # Return whatever has been collected so far.
+            return bot_responses
+        
+    return bot_responses
 
 
 @app.post("/press-button", response_model=List[BotResponse])
@@ -179,57 +199,51 @@ async def press_button(
     api_id = creds.api_id
     api_hash = creds.api_hash
     session_string = creds.session_string
+    
+    bot_responses: List[BotResponse] = []
 
     async with get_telegram_client(api_id, api_hash, session_string) as current_client:
         entity = await current_client.get_input_entity(req.bot_username)
+        
+        # Get the latest message to click its button.
         messages = await current_client.get_messages(entity, limit=1)
         if not messages:
             raise HTTPException(status_code=404, detail="No messages to interact with")
-        message = messages[0]
-
-        # Attach the client to the message object if it's from a different client
-        # This ensures message.click() uses the correct client context.
-        # However, Telethon messages are typically bound to the client that fetched them.
-        # Re-fetching the message with current_client might be safer if issues arise,
-        # but often .click() works if the underlying message ID is valid.
-        # For now, let's assume direct .click() is okay. If not, one would re-fetch:
-        # message = await current_client.get_messages(entity, ids=message.id)
+        message_to_click = messages[0]
 
         try:
             async with current_client.conversation(entity, timeout=req.timeout_sec) as conv:
                 try:
-                    # Ensure the message object uses the current client for its operations
-                    # One way is to ensure methods like message.click() are called on a message
-                    # that is aware of 'current_client', or that client is passed if API allows.
-                    # Telethon's message.click() uses the client instance that the message object
-                    # was created with. If current_client is a temporary one, and message was fetched
-                    # by global client (or vice-versa), this could be an issue.
-                    # A simple way to ensure correctness is to re-fetch the message with current_client
-                    # if we are using a temporary client or if there's doubt.
-                    # However, for simplicity, let's try direct click first.
-                    # If issues arise, one would do:
-                    # if current_client is not client: # i.e., it's a temporary client
-                    #    message = await current_client.get_messages(await current_client.get_input_entity(req.bot_username), ids=message.id)
-
-                    await message.click(text=req.button_text, data=req.callback_data)
-                except Exception as e: # Catches errors specifically from message.click()
+                    # Click the button on the fetched message
+                    # message_to_click is bound to current_client which is used for the conversation
+                    await message_to_click.click(text=req.button_text, data=req.callback_data)
+                except Exception as e: 
                     raise HTTPException(status_code=400, detail=f"Failed to press button: {e}")
                 
-                # Use conv.wait_event with NewMessage to wait for the bot's new message
-                # after the button click.
-                response = await conv.wait_event(
-                    events.NewMessage(incoming=True, from_users=entity, chats=entity),
-                    timeout=req.timeout_sec # Use the request's timeout
-                )
-        except asyncio.TimeoutError: # Catches timeout from the conversation
-            return [] # Return empty list on timeout
-
-    return [BotResponse(
-        response_type=ResponseType.MESSAGE, # Assuming a new message is the primary response
-        message_id=response.id,
-        message_text=response.raw_text,
-        reply_markup=_parse_buttons(response),
-    )]
+                # Loop to collect responses after clicking
+                while True:
+                    try:
+                        # response_event is the message object for NewMessage
+                        response_event = await conv.wait_event(
+                            events.NewMessage(incoming=True, from_users=entity, chats=entity),
+                            timeout=1.0 # e.g., 1 second internal poll
+                        )
+                        bot_responses.append(BotResponse(
+                            response_type=ResponseType.MESSAGE,
+                            message_id=response_event.id,
+                            message_text=response_event.raw_text,
+                            reply_markup=_parse_buttons(response_event),
+                        ))
+                    except asyncio.TimeoutError:
+                        # No new message event within the internal poll timeout (1s).
+                        # Break from this inner loop.
+                        break
+        except asyncio.TimeoutError:
+            # Conversation timeout (req.timeout_sec).
+            # Return whatever has been collected so far.
+            return bot_responses
+            
+    return bot_responses
 
 
 @app.get("/get-messages", response_model=GetMessagesResponse)
