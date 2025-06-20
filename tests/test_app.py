@@ -147,3 +147,46 @@ def test_send_message_timeout(app, ping_bot):
         # assert echo_data["response_type"] == "message"
         # assert "message_id" in echo_data
 
+
+def test_get_updates(app, ping_bot):
+    bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")
+    assert bot_username, "TELEGRAM_TEST_BOT_USERNAME environment variable not set"
+    with TestClient(app) as client:
+        # Send a message to ensure there's something to fetch
+        send_resp = client.post(
+            "/send-message",
+            json={"bot_username": bot_username, "message_text": "/ping"},
+        )
+        assert send_resp.status_code == 200
+        send_data_list = send_resp.json()
+        # Ensure the bot responded to /ping
+        assert any(m.get("message_text") == "pong" for m in send_data_list), "Bot did not respond with 'pong' to /ping"
+
+        # Now get updates
+        updates_resp = client.get("/get-updates", params={"bot_username": bot_username, "limit": 5})
+        assert updates_resp.status_code == 200
+        updates_data = updates_resp.json()
+        assert "messages" in updates_data
+        msgs = updates_data["messages"]
+        assert isinstance(msgs, list)
+        assert len(msgs) > 0, "No messages returned by /get-updates"
+
+        # Check if the "pong" message is among the recent updates
+        # Messages are returned oldest first from the batch.
+        # The most recent message should be the bot's "pong" or the user's "/ping".
+        # Given the test bot echoes, there might be other messages.
+        # We are looking for the "pong".
+        found_pong = any(
+            msg.get("response_type") == "message" 
+            and msg.get("message_text") == "pong" 
+            for msg in msgs
+        )
+        assert found_pong, "Did not receive 'pong' message in /get-updates response"
+
+        # Verify chronological order (oldest of the batch first) if multiple messages are present
+        if len(msgs) > 1:
+            # Assuming message_id is an indicator of order.
+            # This might not be strictly true across different message types or edits,
+            # but for simple new messages, it generally holds.
+            assert msgs[0]["message_id"] < msgs[-1]["message_id"], "Messages do not appear to be in chronological order"
+

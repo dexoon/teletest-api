@@ -169,7 +169,7 @@ async def send_message(
                         # Use a short timeout for each attempt to get a response.
                         # This allows the loop to iterate or exit if no immediate message,
                         # while the overall operation is bounded by req.timeout_sec.
-                        response = await conv.get_response(timeout=1.0) # e.g., 1 second
+                        response = await conv.get_response(timeout=0.2) # Poll for 0.2 seconds
                         bot_responses.append(BotResponse(
                             response_type=ResponseType.MESSAGE,
                             message_id=response.id,
@@ -226,7 +226,7 @@ async def press_button(
                         # response_event is the message object for NewMessage
                         response_event = await conv.wait_event(
                             events.NewMessage(incoming=True, from_users=entity, chats=entity),
-                            timeout=1.0 # e.g., 1 second internal poll
+                            timeout=0.2 # Poll for 0.2 seconds
                         )
                         bot_responses.append(BotResponse(
                             response_type=ResponseType.MESSAGE,
@@ -262,3 +262,30 @@ async def get_messages(
         for m in reversed(messages):
             msgs.append(BotResponse(response_type=ResponseType.MESSAGE, message_id=m.id, message_text=m.raw_text, reply_markup=_parse_buttons(m)))
     return GetMessagesResponse(messages=msgs)
+
+
+@app.get("/get-updates", response_model=GetMessagesResponse)
+async def get_updates(
+    bot_username: str,
+    limit: int = 10, # Default limit for updates
+    creds: TelegramCredentialsRequest = Depends(get_header_credentials),
+) -> GetMessagesResponse:
+    api_id = creds.api_id
+    api_hash = creds.api_hash
+    session_string = creds.session_string
+    async with get_telegram_client(api_id, api_hash, session_string) as current_client:
+        entity = await current_client.get_input_entity(bot_username)
+        # Fetch messages, newest first
+        raw_messages = await current_client.get_messages(entity, limit=limit)
+        
+        processed_messages: List[BotResponse] = []
+        if raw_messages:
+            # Reverse to get chronological order (oldest of the batch first)
+            for m in reversed(raw_messages):
+                processed_messages.append(BotResponse(
+                    response_type=ResponseType.MESSAGE,
+                    message_id=m.id,
+                    message_text=m.raw_text,
+                    reply_markup=_parse_buttons(m)
+                ))
+    return GetMessagesResponse(messages=processed_messages)
