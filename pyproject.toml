@@ -9,4 +9,8 @@ dependencies = [
     "uvicorn",
     "telethon",
     "python-dotenv",
+    "pytest>=8.4.1",
+    "httpx>=0.28.1",
+    "aiogram>=3.20.0.post0",
+    "pytest-docker>=3.2.2",
 ]

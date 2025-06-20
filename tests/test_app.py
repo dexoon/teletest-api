@@ -3,53 +3,33 @@ import os
 import sys
 import time
 import subprocess
+import signal
 
 import pytest
 from fastapi.testclient import TestClient
 
 from pathlib import Path
 
-from .fake_telegram import FakeTelegramClient
-
 
 @pytest.fixture(autouse=True)
 def setup_env(monkeypatch):
-    use_real = os.getenv("RUN_REAL_BOT_TESTS")
-    if not use_real:
-        monkeypatch.setenv("TELEGRAM_API_ID", "1")
-        monkeypatch.setenv("TELEGRAM_API_HASH", "hash")
-        monkeypatch.setenv("TELEGRAM_SESSION_STRING", "session")
-        monkeypatch.setattr("telethon.TelegramClient", FakeTelegramClient)
-        monkeypatch.setattr("telethon.sessions.StringSession", lambda s: s)
+    # Ensure we have the required environment variables for real bot tests
+    required_vars = ["TELEGRAM_API_ID", "TELEGRAM_API_HASH", "TELEGRAM_SESSION_STRING", "TELEGRAM_BOT_TOKEN"]
+    missing_vars = [var for var in required_vars if not os.getenv(var)]
+    if missing_vars:
+        pytest.skip(f"Missing required environment variables for real bot tests: {missing_vars}")
+    
     import src.app as app_module
-
     importlib.reload(app_module)
     yield app_module
-
-
-@pytest.fixture(scope="module")
-def bot_process():
-    if not os.getenv("RUN_REAL_BOT_TESTS"):
-        yield
-        return
-    script = Path(__file__).with_name("real_bot.py")
-    env = os.environ.copy()
-    proc = subprocess.Popen([sys.executable, str(script)], env=env)
-    time.sleep(3)
-    yield proc
-    proc.terminate()
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
 
 
 def create_client(app_module):
     return TestClient(app_module.app)
 
 
-def test_ping(setup_env, bot_process):
-    client = create_client(setup_env)
+def test_ping(app, real_bot_container):
+    client = TestClient(app.app)
     resp = client.post(
         "/send-message",
         json={"bot_username": "testbot", "message_text": "/ping"},
@@ -58,8 +38,8 @@ def test_ping(setup_env, bot_process):
     assert resp.json()["message_text"] == "pong"
 
 
-def test_buttons_and_press(setup_env, bot_process):
-    client = create_client(setup_env)
+def test_buttons_and_press(app, real_bot_container):
+    client = TestClient(app.app)
     # send command that returns buttons
     resp = client.post(
         "/send-message",
@@ -79,8 +59,8 @@ def test_buttons_and_press(setup_env, bot_process):
     assert resp2.json()["message_text"] == "You chose A"
 
 
-def test_get_and_reset_messages(setup_env, bot_process):
-    client = create_client(setup_env)
+def test_get_and_reset_messages(app, real_bot_container):
+    client = TestClient(app.app)
     client.post(
         "/send-message",
         json={"bot_username": "testbot", "message_text": "/ping"},
