@@ -195,7 +195,9 @@ async def press_button(req: PressButtonRequest) -> BotResponse:
                 except Exception as e: # Catches errors specifically from message.click()
                     raise HTTPException(status_code=400, detail=f"Failed to press button: {e}")
                 
-                response = await conv.get_response() # Covered by the outer timeout handler
+                # Use poll_message to wait for the next incoming message from the bot
+                # after the button click.
+                response = await conv.poll_message() # Covered by the outer timeout handler
         except asyncio.TimeoutError: # Catches timeout from the conversation
             raise HTTPException(status_code=504, detail="Timeout waiting for bot response")
 
