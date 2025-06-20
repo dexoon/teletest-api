@@ -11,8 +11,9 @@ dependencies = [
     "python-dotenv",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 test = [
     "pytest>=8.4.1",
     "httpx>=0.28.1",
+    "aiogram>=3.20.0.post0",
 ]

@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from pathlib import Path
 
 
-def test_ping(app, real_bot_container): # real_bot_container fixture is already here, no change needed for this line
+def test_ping(app, ping_bot): # ping_bot fixture is already here, no change needed for this line
     bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")
     assert bot_username, "TELEGRAM_TEST_BOT_USERNAME environment variable not set"
     with TestClient(app) as client:
@@ -18,7 +18,7 @@ def test_ping(app, real_bot_container): # real_bot_container fixture is already 
         assert resp.json()["message_text"] == "pong"
 
 
-def test_buttons_and_press(app, real_bot_container): # real_bot_container fixture is already here, no change needed for this line
+def test_buttons_and_press(app, ping_bot): # ping_bot fixture is already here, no change needed for this line
     bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")
     assert bot_username, "TELEGRAM_TEST_BOT_USERNAME environment variable not set"
     with TestClient(app) as client:
@@ -41,7 +41,7 @@ def test_buttons_and_press(app, real_bot_container): # real_bot_container fixtur
         assert resp2.json()["message_text"] == "You chose A"
 
 
-def test_get_messages(app, real_bot_container): # Renamed from test_get_and_reset_messages
+def test_get_messages(app, ping_bot): # Renamed from test_get_and_reset_messages
     bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")
     assert bot_username, "TELEGRAM_TEST_BOT_USERNAME environment variable not set"
     with TestClient(app) as client:
