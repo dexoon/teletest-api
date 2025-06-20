@@ -14,7 +14,8 @@ from .models import (
     BotResponse,
     PressButtonRequest,
     GetMessagesResponse,
-    MessageButton
+    MessageButton,
+    TelegramCredentialsRequest
 )
 
 load_dotenv()  # Load environment variables from .env file
