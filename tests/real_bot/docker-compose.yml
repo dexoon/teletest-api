@@ -1,0 +1,10 @@
+version: '3.8'
+services:
+  real-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Using a specific image name for the test instance to avoid conflicts
+    image: teletest-api/real-bot-test:${TELEGRAM_BOT_TOKEN_SUFFIX:-latest}
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
