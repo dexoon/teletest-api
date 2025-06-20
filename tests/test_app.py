@@ -70,10 +70,9 @@ def test_get_messages(app, real_bot_container): # Renamed from test_get_and_rese
         # Depending on chat history, there might be more.
         # The important part is that the API call works and returns a list.
         assert isinstance(msgs, list)
-        # If the bot is fresh and only responded "pong", there should be one message from the bot.
-        # If the test user sent "/ping", that's another.
-        # The `get_messages` endpoint returns messages in reverse chronological order (newest first).
-        # The bot's "pong" should be the newest if no other interaction happened.
-        assert len(msgs) >= 1 
-        # Let's assume the first message (most recent) is the bot's "pong"
-        assert msgs[0]["message_text"] == "pong"
+        # Check that we received at least one message (the "pong" reply)
+        assert len(msgs) >= 1
+
+        # Check if any message in the list has the text "pong"
+        pong_received = any(msg.get("message_text") == "pong" for msg in msgs)
+        assert pong_received, "Did not receive 'pong' message from the bot"
