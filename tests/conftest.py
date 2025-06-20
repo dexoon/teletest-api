@@ -5,11 +5,6 @@ import sys
 import os
 import importlib
 import logging
-import subprocess
-import shutil
-import uuid
-import pathlib
-from dotenv import load_dotenv
 
 # Configure logging for conftest
 # To see these logs with pytest, you might need:
@@ -28,7 +23,7 @@ def ping_bot(request):
     )
         # Execute get_me.py inside the container to fetch the bot's username
     try:
-        logger.info(f"Executing get_me.py to fetch bot username...")
+        logger.info("Executing get_me.py to fetch bot username...")
         # Ensure get_me.py is executable if needed, though python execution should be fine.
         # The script get_me.py is expected to be in /app within the container.
         completed_process = subprocess.run(
@@ -51,7 +46,7 @@ def ping_bot(request):
         logger.error(error_msg)
         pytest.fail(error_msg, pytrace=False)
     except subprocess.TimeoutExpired:
-        error_msg = f"Timeout while executing get_me.py."
+        error_msg = "Timeout while executing get_me.py."
         logger.error(error_msg)
         pytest.fail(error_msg, pytrace=False)
     time.sleep(3)  # Wait for bot to start up, or better: poll for readiness

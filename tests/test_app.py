@@ -2,10 +2,8 @@ import os
 import time # Added for sleep
 from typing import Optional # Added for helper type hints
 
-import pytest
 from fastapi.testclient import TestClient
 
-from pathlib import Path
 
 
 # Helper functions
