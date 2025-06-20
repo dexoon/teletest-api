@@ -45,7 +45,13 @@ def test_get_messages(app, real_bot_container): # Renamed from test_get_and_rese
     bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")
     assert bot_username, "TELEGRAM_TEST_BOT_USERNAME environment variable not set"
     with TestClient(app) as client:
-        # Send a message first to ensure there's something to get
+        # Isolation: Fetch existing messages to clear the buffer for this test run
+        # This ensures that the subsequent fetch only contains messages sent during this test.
+        initial_fetch_resp = client.get("/get-messages", params={"bot_username": bot_username, "limit": 100}) # Fetch up to 100 messages
+        assert initial_fetch_resp.status_code == 200
+        # We don't strictly need to assert the content of initial_fetch_resp, just that the call worked.
+
+        # Send a message to trigger a response from the bot
         ping_resp = client.post(
             "/send-message",
             json={"bot_username": bot_username, "message_text": "/ping"},
