@@ -143,11 +143,11 @@ def _parse_buttons(message: types.Message) -> Optional[List[List[MessageButton]]
     return rows
 
 
-@app.post("/send-message", response_model=BotResponse)
+@app.post("/send-message", response_model=List[BotResponse])
 async def send_message(
     req: SendMessageRequest,
     creds: TelegramCredentialsRequest = Depends(get_header_credentials),
-) -> BotResponse:
+) -> List[BotResponse]:
     api_id = creds.api_id
     api_hash = creds.api_hash
     session_string = creds.session_string
@@ -159,19 +159,19 @@ async def send_message(
                 await conv.send_message(req.message_text)
                 response = await conv.get_response()
         except asyncio.TimeoutError:
-            raise HTTPException(status_code=504, detail="Timeout waiting for bot response")
-    return BotResponse(
+            return []  # Return empty list on timeout
+    return [BotResponse(
         response_type=ResponseType.MESSAGE,
         message_text=response.raw_text,
         reply_markup=_parse_buttons(response),
-    )
+    )]
 
 
-@app.post("/press-button", response_model=BotResponse)
+@app.post("/press-button", response_model=List[BotResponse])
 async def press_button(
     req: PressButtonRequest,
     creds: TelegramCredentialsRequest = Depends(get_header_credentials),
-) -> BotResponse:
+) -> List[BotResponse]:
     if not req.button_text and not req.callback_data:
         raise HTTPException(status_code=400, detail="button_text or callback_data required")
 
@@ -221,13 +221,13 @@ async def press_button(
                     timeout=req.timeout_sec # Use the request's timeout
                 )
         except asyncio.TimeoutError: # Catches timeout from the conversation
-            raise HTTPException(status_code=504, detail="Timeout waiting for bot response to button press")
+            return [] # Return empty list on timeout
 
-    return BotResponse(
+    return [BotResponse(
         response_type=ResponseType.MESSAGE, # Assuming a new message is the primary response
         message_text=response.raw_text,
         reply_markup=_parse_buttons(response),
-    )
+    )]
 
 
 @app.get("/get-messages", response_model=GetMessagesResponse)
