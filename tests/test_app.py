@@ -15,7 +15,9 @@ def test_ping(app, ping_bot): # ping_bot fixture is already here, no change need
             json={"bot_username": bot_username, "message_text": "/ping"},
         )
         assert resp.status_code == 200
-        assert resp.json()["message_text"] == "pong"
+        data = resp.json()
+        assert data["response_type"] == "message"
+        assert data["message_text"] == "pong"
 
 
 def test_buttons_and_press(app, ping_bot): # ping_bot fixture is already here, no change needed for this line
@@ -29,6 +31,7 @@ def test_buttons_and_press(app, ping_bot): # ping_bot fixture is already here, n
         )
         assert resp.status_code == 200
         data = resp.json()
+        assert data["response_type"] == "message"
         assert data["reply_markup"]
         assert data["reply_markup"][0][0]["text"] == "A"
 
@@ -38,7 +41,9 @@ def test_buttons_and_press(app, ping_bot): # ping_bot fixture is already here, n
             json={"bot_username": bot_username, "button_text": "A"},
         )
         assert resp2.status_code == 200
-        assert resp2.json()["message_text"] == "You chose A"
+        data2 = resp2.json()
+        assert data2["response_type"] == "message"
+        assert data2["message_text"] == "You chose A"
 
 
 def test_get_messages(app, ping_bot): # Renamed from test_get_and_reset_messages
@@ -57,7 +62,9 @@ def test_get_messages(app, ping_bot): # Renamed from test_get_and_reset_messages
             json={"bot_username": bot_username, "message_text": "/ping"},
         )
         assert ping_resp.status_code == 200
-        assert ping_resp.json()["message_text"] == "pong" # Ensure the bot responded
+        ping_data = ping_resp.json()
+        assert ping_data["response_type"] == "message"
+        assert ping_data["message_text"] == "pong" # Ensure the bot responded
 
         # Now get messages
         resp = client.get("/get-messages", params={"bot_username": bot_username, "limit": 1})
@@ -72,7 +79,10 @@ def test_get_messages(app, ping_bot): # Renamed from test_get_and_reset_messages
         assert isinstance(msgs, list)
         # Check that we received at least one message (the "pong" reply)
         assert len(msgs) >= 1
-
-        # Check if any message in the list has the text "pong"
-        pong_received = any(msg.get("message_text") == "pong" for msg in msgs)
+        
+        # Check if any message in the list is a "pong" message response
+        pong_received = any(
+            msg.get("response_type") == "message" and msg.get("message_text") == "pong"
+            for msg in msgs
+        )
         assert pong_received, "Did not receive 'pong' message from the bot"
