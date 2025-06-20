@@ -18,14 +18,12 @@ class SendMessageRequest(BaseModel):
     bot_username: str
     message_text: str
     timeout_sec: int = 10
-    credentials: Optional[TelegramCredentialsRequest] = None
 
 class PressButtonRequest(BaseModel):
     bot_username: str
     button_text: Optional[str] = None
     callback_data: Optional[str] = None
     timeout_sec: int = 10
-    credentials: Optional[TelegramCredentialsRequest] = None
 
 class GetMessagesResponse(BaseModel):
     messages: List[BotResponse]
