@@ -4,6 +4,7 @@ WORKDIR /app
 
 # Copy project definition and source code
 COPY pyproject.toml ./
+COPY main.py ./
 COPY src ./src
 
 # Install the project and its dependencies
