@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query
-from telethon import TelegramClient
+from telethon import TelegramClient, events # Import events
 from telethon.sessions import StringSession
 from telethon import types
 
@@ -195,11 +195,14 @@ async def press_button(req: PressButtonRequest) -> BotResponse:
                 except Exception as e: # Catches errors specifically from message.click()
                     raise HTTPException(status_code=400, detail=f"Failed to press button: {e}")
                 
-                # Use poll_message to wait for the next incoming message from the bot
+                # Use conv.wait_event with NewMessage to wait for the bot's new message
                 # after the button click.
-                response = await conv.poll_message() # Covered by the outer timeout handler
+                response = await conv.wait_event(
+                    events.NewMessage(incoming=True, from_users=entity, chats=entity),
+                    timeout=req.timeout_sec # Use the request's timeout
+                )
         except asyncio.TimeoutError: # Catches timeout from the conversation
-            raise HTTPException(status_code=504, detail="Timeout waiting for bot response")
+            raise HTTPException(status_code=504, detail="Timeout waiting for bot response to button press")
 
     return BotResponse(
         message_text=response.raw_text,
