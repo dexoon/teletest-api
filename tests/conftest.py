@@ -37,7 +37,7 @@ def real_bot_container(request):
     if loaded_successfully:
         logger.info(f"Successfully loaded environment variables from {env_file_path}.")
         # Log some key variables to confirm they are loaded (show only if SET or NOT SET for security)
-        for var_name in ["TELEGRAM_API_ID", "TELEGRAM_API_HASH", "TELEGRAM_SESSION_STRING", "TELEGRAM_BOT_TOKEN"]:
+        for var_name in ["TELEGRAM_API_ID", "TELEGRAM_API_HASH", "TELEGRAM_SESSION_STRING", "TELEGRAM_BOT_TOKEN", "TELEGRAM_TEST_BOT_USERNAME"]:
             logger.info(f"  Var {var_name} after load_dotenv: {'SET' if os.getenv(var_name) else 'NOT SET'}")
     else:
         logger.warning(f"dotenv.load_dotenv() reported no variables loaded from {env_file_path} (file might be empty or only comments).")
@@ -125,6 +125,7 @@ def app():
         "TELEGRAM_API_HASH",
         "TELEGRAM_SESSION_STRING",
         "TELEGRAM_BOT_TOKEN",
+        "TELEGRAM_TEST_BOT_USERNAME",
     ]
     logger.info(f"Checking for required environment variables: {required_vars}")
     for var_name in required_vars:
