@@ -221,19 +221,3 @@ async def get_messages(
         for m in reversed(messages):
             msgs.append(BotResponse(message_text=m.raw_text, reply_markup=_parse_buttons(m)))
     return GetMessagesResponse(messages=msgs)
-
-
-@app.post("/reset-chat")
-async def reset_chat(req: ResetChatRequest) -> dict:
-    creds = req.credentials
-    api_id = creds.api_id if creds else None
-    api_hash = creds.api_hash if creds else None
-    session_string = creds.session_string if creds else None
-
-    async with get_telegram_client(api_id, api_hash, session_string) as current_client:
-        entity = await current_client.get_input_entity(req.bot_username)
-        try:
-            await current_client.delete_dialog(entity)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to reset chat: {e}")
-    return {"status": "ok"}
