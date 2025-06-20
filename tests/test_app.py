@@ -1,9 +1,4 @@
-import importlib
 import os
-import sys
-import time
-import subprocess
-import signal
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,25 +6,8 @@ from fastapi.testclient import TestClient
 from pathlib import Path
 
 
-@pytest.fixture(autouse=True)
-def setup_env(monkeypatch):
-    # Ensure we have the required environment variables for real bot tests
-    required_vars = ["TELEGRAM_API_ID", "TELEGRAM_API_HASH", "TELEGRAM_SESSION_STRING", "TELEGRAM_BOT_TOKEN"]
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
-    if missing_vars:
-        pytest.skip(f"Missing required environment variables for real bot tests: {missing_vars}")
-    
-    import src.app as app_module
-    importlib.reload(app_module)
-    yield app_module
-
-
-def create_client(app_module):
-    return TestClient(app_module.app)
-
-
 def test_ping(app, real_bot_container):
-    client = TestClient(app.app)
+    client = TestClient(app)
     resp = client.post(
         "/send-message",
         json={"bot_username": "testbot", "message_text": "/ping"},
@@ -39,7 +17,7 @@ def test_ping(app, real_bot_container):
 
 
 def test_buttons_and_press(app, real_bot_container):
-    client = TestClient(app.app)
+    client = TestClient(app)
     # send command that returns buttons
     resp = client.post(
         "/send-message",
@@ -60,7 +38,7 @@ def test_buttons_and_press(app, real_bot_container):
 
 
 def test_get_and_reset_messages(app, real_bot_container):
-    client = TestClient(app.app)
+    client = TestClient(app)
     client.post(
         "/send-message",
         json={"bot_username": "testbot", "message_text": "/ping"},
