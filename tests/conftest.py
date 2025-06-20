@@ -5,6 +5,17 @@ import importlib
 
 
 @pytest.fixture(scope="session")
+def docker_setup():
+    """Override default docker_setup to prevent docker-compose up."""
+    return []
+
+@pytest.fixture(scope="session")
+def docker_cleanup():
+    """Override default docker_cleanup to prevent docker-compose down."""
+    return []
+
+
+@pytest.fixture(scope="session")
 def real_bot_container(docker_services):
     """Build and run the real-bot container directly."""
     # Build the image
