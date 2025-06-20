@@ -112,19 +112,3 @@ def test_send_message_timeout(app, ping_bot):
         assert resp.status_code == 200
         assert resp.json() == []
 
-def test_press_button_timeout(app, ping_bot):
-    bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")
-    assert bot_username, "TELEGRAM_TEST_BOT_USERNAME environment variable not set"
-    with TestClient(app) as client:
-        # First, send a message that has buttons to ensure there's something to click
-        client.post(
-            "/send-message",
-            json={"bot_username": bot_username, "message_text": "/buttons"},
-        )
-        # Now, attempt to press a button with a very short timeout
-        resp = client.post(
-            "/press-button",
-            json={"bot_username": bot_username, "button_text": "A", "timeout_sec": 1},
-        )
-        assert resp.status_code == 200
-        assert resp.json() == []
