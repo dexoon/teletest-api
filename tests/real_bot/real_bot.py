@@ -5,7 +5,10 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-BOT_TOKEN = os.environ["TELEGRAM_BOT_TOKEN"]
+BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+if not BOT_TOKEN:
+    raise ValueError("TELEGRAM_BOT_TOKEN environment variable is not set. This is required for the bot to run.")
 
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher()
