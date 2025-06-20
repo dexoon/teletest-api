@@ -29,8 +29,8 @@ DEFAULT_SESSION = os.getenv("TELEGRAM_SESSION_STRING")
 if not all([DEFAULT_API_ID, DEFAULT_API_HASH, DEFAULT_SESSION]):
     raise RuntimeError("Default TELEGRAM_API_ID, TELEGRAM_API_HASH, and TELEGRAM_SESSION_STRING must be set in environment variables")
 
-# Global client instance, initialized with default credentials
-client = TelegramClient(StringSession(DEFAULT_SESSION), int(DEFAULT_API_ID), DEFAULT_API_HASH)
+# Global client instance, initialized as None. Will be set up in startup_event.
+client: Optional[TelegramClient] = None
 app = FastAPI(title="Telegram Bot Test API")
 
 
@@ -40,30 +40,75 @@ async def get_telegram_client(
     custom_api_hash: Optional[str] = None,
     custom_session_string: Optional[str] = None,
 ):
+    global client # Ensure we're referring to the module-level client
     if custom_api_id is not None and custom_api_hash and custom_session_string:
         # All custom credentials provided, create a new temporary client
-        temp_client = TelegramClient(StringSession(custom_session_string), int(custom_api_id), custom_api_hash)
-        await temp_client.start()
+        loop = asyncio.get_running_loop()
+        temp_client = TelegramClient(
+            StringSession(custom_session_string),
+            int(custom_api_id),
+            custom_api_hash,
+            loop=loop
+        )
+        await temp_client.start() # Make sure temp_client is started
         try:
             yield temp_client
         finally:
             await temp_client.disconnect()
     else:
-        # Not all custom credentials provided or none provided, use the global client
-        # Ensure global client is started and connected (should be by startup_event)
-        if not client.is_connected:  # Defensive check
-            await client.start()  # Ensure it's started if somehow not connected
+        # Use the global client
+        if client is None:
+            # This should not happen if startup_event ran correctly.
+            raise RuntimeError("Global Telegram client has not been initialized. Check application startup logic.")
+        
+        if not client.is_connected():
+            # This is a fallback/defensive measure. Startup should handle connection.
+            # Consider logging a warning here if it happens.
+            # print("Warning: Global client was not connected in get_telegram_client, attempting to start.")
+            await client.start()
         yield client
         # Global client's lifecycle is managed by startup/shutdown events
 
 
 @app.on_event("startup")
 async def startup_event() -> None:
-    await client.start()
+    global client # We are modifying the global client variable
+
+    # Fetch current environment variables for client setup.
+    # These are expected to be set by the time the app starts.
+    # In tests, conftest.py's load_dotenv ensures these are available from .env.test before src.app is reloaded.
+    current_api_id = os.getenv("TELEGRAM_API_ID")
+    current_api_hash = os.getenv("TELEGRAM_API_HASH")
+    current_session_string = os.getenv("TELEGRAM_SESSION_STRING")
+
+    # These should have been checked at module level already for defaults,
+    # but good to ensure they are present for client instantiation here.
+    if not all([current_api_id, current_api_hash, current_session_string]):
+        raise RuntimeError(
+            "Startup Error: TELEGRAM_API_ID, TELEGRAM_API_HASH, and TELEGRAM_SESSION_STRING must be set in environment for client startup."
+        )
+
+    # Instantiate the client if it hasn't been already
+    if client is None:
+        loop = asyncio.get_running_loop()
+        client = TelegramClient(
+            StringSession(current_session_string),
+            int(current_api_id),
+            current_api_hash,
+            loop=loop
+        )
+    
+    # Ensure the client is started
+    if not client.is_connected():
+        await client.start()
+
 
 @app.on_event("shutdown")
 async def shutdown_event() -> None:
-    await client.disconnect()
+    global client
+    if client and client.is_connected():
+        await client.disconnect()
+    # client = None # Optionally reset client to None
 
 
 def _parse_buttons(message: types.Message) -> Optional[List[List[MessageButton]]]:
