@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the real_bot code
 COPY real_bot.py ./
+COPY get_me.py ./
 
 # Set environment variables
 ENV PYTHONPATH=/app

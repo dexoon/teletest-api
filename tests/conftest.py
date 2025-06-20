@@ -106,7 +106,37 @@ def real_bot_container(request):
     # Optional: Add a small delay or a health check here to ensure the bot inside the container has started.
     # import time
     # logger.info("Waiting a few seconds for the bot in container to initialize...")
-    # time.sleep(5)
+    # time.sleep(5) # Give a moment for the container to be fully up if needed
+
+    # Execute get_me.py inside the container to fetch the bot's username
+    try:
+        logger.info(f"Executing get_me.py in container '{docker_container_name}' to fetch bot username...")
+        # Ensure get_me.py is executable if needed, though python execution should be fine.
+        # The script get_me.py is expected to be in /app within the container.
+        completed_process = subprocess.run(
+            ["docker", "exec", docker_container_name, "python", "get_me.py"],
+            capture_output=True, text=True, check=True, timeout=30 # Added timeout
+        )
+        bot_username_from_docker = completed_process.stdout.strip()
+        if not bot_username_from_docker or "Error:" in bot_username_from_docker:
+            error_msg = f"Failed to get bot username from get_me.py. Output: {bot_username_from_docker}"
+            logger.error(error_msg)
+            pytest.fail(error_msg, pytrace=False)
+        
+        os.environ['TELEGRAM_TEST_BOT_USERNAME'] = bot_username_from_docker
+        logger.info(f"Successfully fetched and set TELEGRAM_TEST_BOT_USERNAME='{bot_username_from_docker}'")
+
+    except subprocess.CalledProcessError as e:
+        stdout = e.stdout.strip() if e.stdout else "N/A"
+        stderr = e.stderr.strip() if e.stderr else "N/A"
+        error_msg = f"Failed to execute get_me.py in container: {e}\nStdout:\n{stdout}\nStderr:\n{stderr}"
+        logger.error(error_msg)
+        pytest.fail(error_msg, pytrace=False)
+    except subprocess.TimeoutExpired:
+        error_msg = f"Timeout while executing get_me.py in container '{docker_container_name}'."
+        logger.error(error_msg)
+        pytest.fail(error_msg, pytrace=False)
+
 
     logger.info(f"real_bot_container setup complete, yielding container name: {docker_container_name}")
     yield docker_container_name
