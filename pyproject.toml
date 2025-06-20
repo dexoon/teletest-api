@@ -10,3 +10,9 @@ dependencies = [
     "telethon",
     "python-dotenv",
 ]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.4.1",
+    "httpx>=0.28.1",
+]

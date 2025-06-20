@@ -2,11 +2,16 @@ from telethon.sync import TelegramClient
 from telethon.sessions import StringSession
 from telethon import errors
 
-API_ID = int(input('Enter API ID: '))
-API_HASH = input('Enter API Hash: ')
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+TELEGRAM_API_ID = int(os.getenv('TELEGRAM_API_ID') or input('Enter API ID: '))
+TELEGRAM_API_HASH = os.getenv('TELEGRAM_API_HASH') or input('Enter API Hash: ')
 
 try:
-    with TelegramClient(StringSession(), API_ID, API_HASH) as client:
+    with TelegramClient(StringSession(), TELEGRAM_API_ID, TELEGRAM_API_HASH) as client:
         client.start()
         print('Your session string:\n')
         print(client.session.save())

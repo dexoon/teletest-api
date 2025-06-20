@@ -29,7 +29,3 @@ class PressButtonRequest(BaseModel):
 
 class GetMessagesResponse(BaseModel):
     messages: List[BotResponse]
-
-class ResetChatRequest(BaseModel):
-    bot_username: str
-    credentials: Optional[TelegramCredentialsRequest] = None

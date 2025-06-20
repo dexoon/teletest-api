@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query
-from telethon import TelegramClient
+from telethon import TelegramClient, events # Import events
 from telethon.sessions import StringSession
 from telethon import types
 
@@ -14,7 +14,6 @@ from .models import (
     BotResponse,
     PressButtonRequest,
     GetMessagesResponse,
-    ResetChatRequest,
     MessageButton,
     TelegramCredentialsRequest,
 )
@@ -29,9 +28,44 @@ DEFAULT_SESSION = os.getenv("TELEGRAM_SESSION_STRING")
 if not all([DEFAULT_API_ID, DEFAULT_API_HASH, DEFAULT_SESSION]):
     raise RuntimeError("Default TELEGRAM_API_ID, TELEGRAM_API_HASH, and TELEGRAM_SESSION_STRING must be set in environment variables")
 
-# Global client instance, initialized with default credentials
-client = TelegramClient(StringSession(DEFAULT_SESSION), int(DEFAULT_API_ID), DEFAULT_API_HASH)
-app = FastAPI(title="Telegram Bot Test API")
+# Global client instance, initialized as None. Will be set up in the lifespan manager.
+client: Optional[TelegramClient] = None
+# app will be defined after the lifespan manager
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    global client # We are modifying the global client variable
+    # Startup logic
+    # Fetch current environment variables for client setup.
+    current_api_id = os.getenv("TELEGRAM_API_ID")
+    current_api_hash = os.getenv("TELEGRAM_API_HASH")
+    current_session_string = os.getenv("TELEGRAM_SESSION_STRING")
+
+    if not all([current_api_id, current_api_hash, current_session_string]):
+        raise RuntimeError(
+            "Lifespan Startup Error: TELEGRAM_API_ID, TELEGRAM_API_HASH, and TELEGRAM_SESSION_STRING must be set in environment for client startup."
+        )
+
+    if client is None: # Ensure client is initialized
+        loop = asyncio.get_running_loop()
+        client = TelegramClient(
+            StringSession(current_session_string),
+            int(current_api_id),
+            current_api_hash,
+            loop=loop
+        )
+    
+    if not client.is_connected():
+        await client.start()
+    
+    yield # Application runs here
+
+    # Shutdown logic
+    if client and client.is_connected():
+        await client.disconnect()
+    # client = None # Optionally reset client
+
+app = FastAPI(title="Telegram Bot Test API", lifespan=lifespan)
 
 
 @asynccontextmanager
@@ -40,31 +74,37 @@ async def get_telegram_client(
     custom_api_hash: Optional[str] = None,
     custom_session_string: Optional[str] = None,
 ):
+    global client # Ensure we're referring to the module-level client
     if custom_api_id is not None and custom_api_hash and custom_session_string:
         # All custom credentials provided, create a new temporary client
-        temp_client = TelegramClient(StringSession(custom_session_string), int(custom_api_id), custom_api_hash)
-        await temp_client.start()
+        loop = asyncio.get_running_loop()
+        temp_client = TelegramClient(
+            StringSession(custom_session_string),
+            int(custom_api_id),
+            custom_api_hash,
+            loop=loop
+        )
+        await temp_client.start() # Make sure temp_client is started
         try:
             yield temp_client
         finally:
             await temp_client.disconnect()
     else:
-        # Not all custom credentials provided or none provided, use the global client
-        # Ensure global client is started and connected (should be by startup_event)
-        if not client.is_connected:  # Defensive check
-            await client.start()  # Ensure it's started if somehow not connected
+        # Use the global client
+        if client is None:
+            # This should not happen if startup_event ran correctly.
+            raise RuntimeError("Global Telegram client has not been initialized. Check application startup logic.")
+        
+        if not client.is_connected():
+            # This is a fallback/defensive measure. Startup should handle connection.
+            # Consider logging a warning here if it happens.
+            # print("Warning: Global client was not connected in get_telegram_client, attempting to start.")
+            await client.start()
         yield client
-        # Global client's lifecycle is managed by startup/shutdown events
+        # Global client's lifecycle is managed by startup/shutdown events, now via lifespan manager
 
 
-@app.on_event("startup")
-async def startup_event() -> None:
-    await client.start()
-
-@app.on_event("shutdown")
-async def shutdown_event() -> None:
-    await client.disconnect()
-
+# Old event handlers are removed as their logic is now in the lifespan manager.
 
 def _parse_buttons(message: types.Message) -> Optional[List[List[MessageButton]]]:
     if not message.buttons:
@@ -155,9 +195,14 @@ async def press_button(req: PressButtonRequest) -> BotResponse:
                 except Exception as e: # Catches errors specifically from message.click()
                     raise HTTPException(status_code=400, detail=f"Failed to press button: {e}")
                 
-                response = await conv.get_response() # Covered by the outer timeout handler
+                # Use conv.wait_event with NewMessage to wait for the bot's new message
+                # after the button click.
+                response = await conv.wait_event(
+                    events.NewMessage(incoming=True, from_users=entity, chats=entity),
+                    timeout=req.timeout_sec # Use the request's timeout
+                )
         except asyncio.TimeoutError: # Catches timeout from the conversation
-            raise HTTPException(status_code=504, detail="Timeout waiting for bot response")
+            raise HTTPException(status_code=504, detail="Timeout waiting for bot response to button press")
 
     return BotResponse(
         message_text=response.raw_text,
@@ -180,19 +225,3 @@ async def get_messages(
         for m in reversed(messages):
             msgs.append(BotResponse(message_text=m.raw_text, reply_markup=_parse_buttons(m)))
     return GetMessagesResponse(messages=msgs)
-
-
-@app.post("/reset-chat")
-async def reset_chat(req: ResetChatRequest) -> dict:
-    creds = req.credentials
-    api_id = creds.api_id if creds else None
-    api_hash = creds.api_hash if creds else None
-    session_string = creds.session_string if creds else None
-
-    async with get_telegram_client(api_id, api_hash, session_string) as current_client:
-        entity = await current_client.get_input_entity(req.bot_username)
-        try:
-            await current_client.delete_dialog(entity)
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Failed to reset chat: {e}")
-    return {"status": "ok"}
