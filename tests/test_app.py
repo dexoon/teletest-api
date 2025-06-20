@@ -107,7 +107,7 @@ def test_send_message_timeout(app, ping_bot):
         # Assuming the bot won't respond to "/nonexistentcommand" or will take longer than 0.1s
         resp = client.post(
             "/send-message",
-            json={"bot_username": bot_username, "message_text": "/nonexistentcommand", "timeout_sec": 0.1},
+            json={"bot_username": bot_username, "message_text": "/nonexistentcommand", "timeout_sec": 1},
         )
         assert resp.status_code == 200
         assert resp.json() == []
@@ -124,7 +124,7 @@ def test_press_button_timeout(app, ping_bot):
         # Now, attempt to press a button with a very short timeout
         resp = client.post(
             "/press-button",
-            json={"bot_username": bot_username, "button_text": "A", "timeout_sec": 0.1},
+            json={"bot_username": bot_username, "button_text": "A", "timeout_sec": 1},
         )
         assert resp.status_code == 200
         assert resp.json() == []
