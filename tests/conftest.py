@@ -168,7 +168,6 @@ def app():
         skip_message = f"Missing required environment variables: {', '.join(missing_vars)}. These should be in .env.test and loaded by real_bot_container. Skipping test."
         logger.warning(skip_message)
         pytest.skip(skip_message)
-        return # Should not be reached if pytest.skip works as expected
 
     logger.info("All required environment variables are set.")
     logger.info("Reloading src.app module to pick up environment variables...")
