@@ -1,9 +1,27 @@
 import os
+import time # Added for sleep
+from typing import Optional # Added for helper type hints
 
 import pytest
 from fastapi.testclient import TestClient
 
 from pathlib import Path
+
+
+# Helper functions
+def find_message_with_text(responses: list, text: str) -> Optional[dict]:
+    """Finds the first message with matching text in a list of BotResponse dicts."""
+    for r in responses:
+        if r.get("response_type") == "message" and r.get("message_text") == text:
+            return r
+    return None
+
+def find_message_by_id_in_get_messages(get_messages_response: dict, message_id: int) -> Optional[dict]:
+    """Finds a message by its ID in the 'messages' list of a GetMessagesResponse dict."""
+    for m in get_messages_response.get("messages", []):
+        if m.get("message_id") == message_id:
+            return m
+    return None
 
 
 def test_ping(app, ping_bot): # ping_bot fixture is already here, no change needed for this line
@@ -28,49 +46,73 @@ def test_ping(app, ping_bot): # ping_bot fixture is already here, no change need
         assert isinstance(data["message_id"], int)
 
 
-def test_buttons_and_press(app, ping_bot): # ping_bot fixture is already here, no change needed for this line
+def test_buttons_and_press(app, ping_bot):
     bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")
     assert bot_username, "TELEGRAM_TEST_BOT_USERNAME environment variable not set"
     with TestClient(app) as client:
-        # send command that returns buttons
-        resp = client.post(
+        # Send /buttons command
+        resp_buttons = client.post(
             "/send-message",
-            json={"bot_username": bot_username, "message_text": "/buttons"},
+            json={"bot_username": bot_username, "message_text": "/buttons", "timeout_sec": 5},
         )
-        assert resp.status_code == 200
-        data_list = resp.json()
-        assert isinstance(data_list, list)
-
-        button_messages = [
-            m for m in data_list 
-            if m.get("reply_markup") and m["reply_markup"] and m["reply_markup"][0] and m["reply_markup"][0][0]["text"] == "A"
-        ]
-        assert len(button_messages) >= 1, "No message with button 'A' found"
-        data = button_messages[0] # Use the first such message
-
-        assert data["response_type"] == "message"
-        assert "message_id" in data
-        assert isinstance(data["message_id"], int)
-        assert data["reply_markup"] # Already checked by filter structure
-        assert data["reply_markup"][0][0]["text"] == "A" # Already checked by filter
-
-        # press button A
-        resp2 = client.post(
-            "/press-button",
-            json={"bot_username": bot_username, "button_text": "A"},
-        )
-        assert resp2.status_code == 200
-        data_list2 = resp2.json()
-        assert isinstance(data_list2, list)
+        assert resp_buttons.status_code == 200
+        buttons_responses = resp_buttons.json()
         
-        chose_a_messages = [m for m in data_list2 if m.get("message_text") == "You chose A"]
-        assert len(chose_a_messages) >= 1, "No 'You chose A' message found"
-        data2 = chose_a_messages[0] # Use the first such message
+        choose_message = find_message_with_text(buttons_responses, "Choose:")
+        assert choose_message, "Initial 'Choose:' message from /buttons not found"
+        assert choose_message["reply_markup"], "Buttons not found on 'Choose:' message"
+        assert choose_message["reply_markup"][0][0]["text"] == "A"
+        original_message_id_for_a = choose_message["message_id"]
 
-        assert data2["response_type"] == "message"
-        assert "message_id" in data2
-        assert isinstance(data2["message_id"], int)
-        # data2["message_text"] == "You chose A" is confirmed by the filter
+        # Test Pressing Button A (results in an edit)
+        resp_press_a = client.post(
+            "/press-button",
+            json={"bot_username": bot_username, "button_text": "A", "timeout_sec": 5},
+        )
+        assert resp_press_a.status_code == 200
+        press_a_responses = resp_press_a.json()
+        # Pressing button A edits the message, doesn't send a new one.
+        # So, /press-button (which waits for NewMessage) should return an empty list.
+        assert isinstance(press_a_responses, list)
+        assert not any(r.get("message_text") for r in press_a_responses), \
+            f"Pressing button A should not yield new messages via /press-button, got: {press_a_responses}"
+
+        # Verify the edit by fetching updates
+        time.sleep(1) # Give a moment for the edit to propagate if necessary
+        updates_resp_a = client.get("/get-updates", params={"bot_username": bot_username, "limit": 5})
+        assert updates_resp_a.status_code == 200
+        updates_a_data = updates_resp_a.json()
+        
+        edited_message_a = find_message_by_id_in_get_messages(updates_a_data, original_message_id_for_a)
+        assert edited_message_a, f"Original message ID {original_message_id_for_a} not found in updates after pressing A"
+        assert edited_message_a["message_text"] == "You chose A and I edited the message."
+
+        # Test Pressing Button B (results in an alert and a new message)
+        # Re-send /buttons to get a fresh message to click, as the previous one was edited.
+        resp_buttons_again = client.post(
+            "/send-message",
+            json={"bot_username": bot_username, "message_text": "/buttons", "timeout_sec": 5},
+        )
+        assert resp_buttons_again.status_code == 200
+        button_messages_again_list = resp_buttons_again.json()
+        choose_message_for_b = find_message_with_text(button_messages_again_list, "Choose:")
+        assert choose_message_for_b, "Could not find 'Choose:' message when re-sending /buttons for button B test"
+        # original_message_id_for_b = choose_message_for_b["message_id"] # Not strictly needed for B test assertions
+
+        resp_press_b = client.post(
+            "/press-button",
+            json={"bot_username": bot_username, "button_text": "B", "timeout_sec": 5},
+        )
+        assert resp_press_b.status_code == 200
+        press_b_responses = resp_press_b.json()
+        assert isinstance(press_b_responses, list)
+        
+        # Expect the new message: "Additionally, I sent a new message because you chose B."
+        # The alert "B was chosen!" is not captured as a message by /press-button.
+        new_message_for_b = find_message_with_text(press_b_responses, "Additionally, I sent a new message because you chose B.")
+        assert new_message_for_b, "Did not find new message 'Additionally, I sent a new message because you chose B.' after pressing button B"
+        assert new_message_for_b["response_type"] == "message"
+        assert isinstance(new_message_for_b["message_id"], int)
 
 
 def test_get_messages(app, ping_bot): # Renamed from test_get_and_reset_messages
@@ -189,4 +231,126 @@ def test_get_updates(app, ping_bot):
             # This might not be strictly true across different message types or edits,
             # but for simple new messages, it generally holds.
             assert msgs[0]["message_id"] < msgs[-1]["message_id"], "Messages do not appear to be in chronological order"
+
+
+def test_edit_message_command(app, ping_bot):
+    bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")
+    assert bot_username, "TELEGRAM_TEST_BOT_USERNAME environment variable not set"
+    with TestClient(app) as client:
+        # Send /edit_test command
+        resp_send = client.post(
+            "/send-message",
+            json={"bot_username": bot_username, "message_text": "/edit_test", "timeout_sec": 5},
+        )
+        assert resp_send.status_code == 200
+        send_responses = resp_send.json()
+        
+        # The bot first sends "Original message, I will edit this."
+        # conv.get_response() in send_message should pick this up.
+        original_sent_msg = find_message_with_text(send_responses, "Original message, I will edit this.")
+        assert original_sent_msg, f"Initial message from /edit_test not found in {send_responses}"
+        original_message_id = original_sent_msg["message_id"]
+
+        # The bot then edits it to "Edited message!".
+        # Wait a bit for the edit to surely happen on the bot side (bot has 1s sleep).
+        time.sleep(2) 
+
+        updates_resp = client.get("/get-updates", params={"bot_username": bot_username, "limit": 5})
+        assert updates_resp.status_code == 200
+        updates_data = updates_resp.json()
+        
+        edited_message = find_message_by_id_in_get_messages(updates_data, original_message_id)
+        assert edited_message, f"Message ID {original_message_id} not found in updates for /edit_test: {updates_data}"
+        assert edited_message["message_text"] == "Edited message!"
+
+
+def test_alert_callback(app, ping_bot):
+    bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")
+    assert bot_username, "TELEGRAM_TEST_BOT_USERNAME environment variable not set"
+    with TestClient(app) as client:
+        # 1. Send /alert_test to get the message with the button
+        resp_send = client.post(
+            "/send-message",
+            json={"bot_username": bot_username, "message_text": "/alert_test", "timeout_sec": 5},
+        )
+        assert resp_send.status_code == 200
+        send_responses = resp_send.json()
+        
+        alert_msg_with_button = find_message_with_text(send_responses, "Press the button to see an alert.")
+        assert alert_msg_with_button, f"Message from /alert_test with button not found in {send_responses}"
+        assert alert_msg_with_button["reply_markup"], "Button not found on /alert_test message"
+        assert alert_msg_with_button["reply_markup"][0][0]["text"] == "Show Alert"
+
+        # 2. Press the "Show Alert" button
+        resp_press = client.post(
+            "/press-button",
+            json={"bot_username": bot_username, "button_text": "Show Alert", "timeout_sec": 5},
+        )
+        assert resp_press.status_code == 200
+        press_responses = resp_press.json()
+        
+        assert isinstance(press_responses, list)
+        assert not any(r.get("message_text") for r in press_responses), \
+            f"Pressing 'Show Alert' should not result in new messages, got: {press_responses}"
+
+
+def test_new_message_from_callback(app, ping_bot):
+    bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")
+    assert bot_username, "TELEGRAM_TEST_BOT_USERNAME environment variable not set"
+    with TestClient(app) as client:
+        # 1. Send /new_message_test to get the message with the button
+        resp_send = client.post(
+            "/send-message",
+            json={"bot_username": bot_username, "message_text": "/new_message_test", "timeout_sec": 5},
+        )
+        assert resp_send.status_code == 200
+        send_responses = resp_send.json()
+
+        initial_msg = find_message_with_text(send_responses, "Press the button and I will send a new message.")
+        assert initial_msg, f"Message from /new_message_test with button not found in {send_responses}"
+        assert initial_msg["reply_markup"], "Button not found on /new_message_test message"
+        assert initial_msg["reply_markup"][0][0]["text"] == "Send New Msg"
+
+        # 2. Press the "Send New Msg" button
+        resp_press = client.post(
+            "/press-button",
+            json={"bot_username": bot_username, "button_text": "Send New Msg", "timeout_sec": 5},
+        )
+        assert resp_press.status_code == 200
+        press_responses = resp_press.json()
+        
+        brand_new_message = find_message_with_text(press_responses, "This is a brand new message triggered by the button.")
+        assert brand_new_message, f"Did not find the new message triggered by 'Send New Msg' button in {press_responses}"
+        assert brand_new_message["response_type"] == "message"
+        assert isinstance(brand_new_message["message_id"], int)
+
+
+def test_ack_callback(app, ping_bot):
+    bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")
+    assert bot_username, "TELEGRAM_TEST_BOT_USERNAME environment variable not set"
+    with TestClient(app) as client:
+        # 1. Send /ack_test to get the message with the button
+        resp_send = client.post(
+            "/send-message",
+            json={"bot_username": bot_username, "message_text": "/ack_test", "timeout_sec": 5},
+        )
+        assert resp_send.status_code == 200
+        send_responses = resp_send.json()
+
+        initial_msg = find_message_with_text(send_responses, "Press the button for a simple acknowledgement.")
+        assert initial_msg, f"Message from /ack_test with button not found in {send_responses}"
+        assert initial_msg["reply_markup"], "Button not found on /ack_test message"
+        assert initial_msg["reply_markup"][0][0]["text"] == "Just Ack"
+
+        # 2. Press the "Just Ack" button
+        resp_press = client.post(
+            "/press-button",
+            json={"bot_username": bot_username, "button_text": "Just Ack", "timeout_sec": 5},
+        )
+        assert resp_press.status_code == 200
+        press_responses = resp_press.json()
+        
+        assert isinstance(press_responses, list)
+        assert not any(r.get("message_text") for r in press_responses), \
+            f"Pressing 'Just Ack' should not result in new messages, got: {press_responses}"
 
