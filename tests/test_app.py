@@ -181,13 +181,12 @@ def test_send_message_timeout(app, ping_bot):
         data_list = resp.json()
         assert isinstance(data_list, list)
         
-        echo_messages = [m for m in data_list if m.get("message_text") == "/nonexistentcommand"]
-        assert len(echo_messages) >= 1, "No echo message for '/nonexistentcommand' found"
-        # Further assertions on the echo message can be added if needed.
-        # For example, checking response_type and message_id:
-        # echo_data = echo_messages[0]
-        # assert echo_data["response_type"] == "message"
-        # assert "message_id" in echo_data
+        # The test bot (tests/real_bot/main.py) does NOT echo unknown commands (like /nonexistentcommand).
+        # Therefore, for "/nonexistentcommand", we expect no messages from the bot.
+        # The `send_message` function will return an empty list if the conversation times out
+        # without the bot sending any messages.
+        assert not data_list, \
+            f"Expected no messages for '/nonexistentcommand' on timeout, but got: {data_list}"
 
 
 def test_get_updates(app, ping_bot):
