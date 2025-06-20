@@ -61,7 +61,7 @@ async def lifespan(app_instance: FastAPI):
         )
     
     if not client.is_connected():
-        client.start()
+        await client.start()
     
     yield # Application runs here
 
