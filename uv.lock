@@ -275,22 +275,27 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
-    { name = "httpx" },
-    { name = "pytest" },
     { name = "python-dotenv" },
     { name = "telethon" },
     { name = "uvicorn" },
 ]
 
+[package.optional-dependencies]
+test = [
+    { name = "httpx" },
+    { name = "pytest" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "fastapi" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "pytest", specifier = ">=8.4.1" },
+    { name = "httpx", marker = "extra == 'test'", specifier = ">=0.28.1" },
+    { name = "pytest", marker = "extra == 'test'", specifier = ">=8.4.1" },
     { name = "python-dotenv" },
     { name = "telethon" },
     { name = "uvicorn" },
 ]
+provides-extras = ["test"]
 
 [[package]]
 name = "starlette"
