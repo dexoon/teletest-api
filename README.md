@@ -56,6 +56,12 @@ The service exposes a few endpoints to interact with bots:
 - `GET /get-messages` – fetch recent messages from the chat with the bot
 - `POST /reset-chat` – clear dialog history with the bot
 
+Custom Telegram credentials can be provided via HTTP headers:
+
+- `X-Telegram-Api-Id`
+- `X-Telegram-Api-Hash`
+- `X-Telegram-Session-String`
+
 ## Running tests with a real bot
 
 The test suite can interact with a live Telegram bot if you provide the required credentials:

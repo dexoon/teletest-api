@@ -4,7 +4,7 @@ from typing import List, Optional, AsyncGenerator
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Header, Depends
 from telethon import TelegramClient, events # Import events
 from telethon.sessions import StringSession
 from telethon import types
@@ -110,6 +110,14 @@ async def get_telegram_client(
 
 # Old event handlers are removed as their logic is now in the lifespan manager.
 
+async def get_header_credentials(
+    api_id: Optional[int] = Header(None, alias="X-Telegram-Api-Id"),
+    api_hash: Optional[str] = Header(None, alias="X-Telegram-Api-Hash"),
+    session_string: Optional[str] = Header(None, alias="X-Telegram-Session-String"),
+) -> TelegramCredentialsRequest:
+    """Extract optional Telegram credentials from request headers."""
+    return TelegramCredentialsRequest(api_id=api_id, api_hash=api_hash, session_string=session_string)
+
 def _parse_buttons(message: types.Message) -> Optional[List[List[MessageButton]]]:
     if not message.buttons:
         return None
@@ -134,11 +142,13 @@ def _parse_buttons(message: types.Message) -> Optional[List[List[MessageButton]]
 
 
 @app.post("/send-message", response_model=BotResponse)
-async def send_message(req: SendMessageRequest) -> BotResponse:
-    creds = req.credentials
-    api_id = creds.api_id if creds else None
-    api_hash = creds.api_hash if creds else None
-    session_string = creds.session_string if creds else None
+async def send_message(
+    req: SendMessageRequest,
+    creds: TelegramCredentialsRequest = Depends(get_header_credentials),
+) -> BotResponse:
+    api_id = creds.api_id
+    api_hash = creds.api_hash
+    session_string = creds.session_string
 
     async with get_telegram_client(api_id, api_hash, session_string) as current_client:
         entity = await current_client.get_input_entity(req.bot_username)
@@ -155,14 +165,16 @@ async def send_message(req: SendMessageRequest) -> BotResponse:
 
 
 @app.post("/press-button", response_model=BotResponse)
-async def press_button(req: PressButtonRequest) -> BotResponse:
+async def press_button(
+    req: PressButtonRequest,
+    creds: TelegramCredentialsRequest = Depends(get_header_credentials),
+) -> BotResponse:
     if not req.button_text and not req.callback_data:
         raise HTTPException(status_code=400, detail="button_text or callback_data required")
 
-    creds = req.credentials
-    api_id = creds.api_id if creds else None
-    api_hash = creds.api_hash if creds else None
-    session_string = creds.session_string if creds else None
+    api_id = creds.api_id
+    api_hash = creds.api_hash
+    session_string = creds.session_string
 
     async with get_telegram_client(api_id, api_hash, session_string) as current_client:
         entity = await current_client.get_input_entity(req.bot_username)
@@ -218,10 +230,11 @@ async def press_button(req: PressButtonRequest) -> BotResponse:
 async def get_messages(
     bot_username: str,
     limit: int = 5,
-    api_id: Optional[int] = Query(None, description="Custom API ID"),
-    api_hash: Optional[str] = Query(None, description="Custom API Hash"),
-    session_string: Optional[str] = Query(None, description="Custom Session String")
+    creds: TelegramCredentialsRequest = Depends(get_header_credentials),
 ) -> GetMessagesResponse:
+    api_id = creds.api_id
+    api_hash = creds.api_hash
+    session_string = creds.session_string
     async with get_telegram_client(api_id, api_hash, session_string) as current_client:
         entity = await current_client.get_input_entity(bot_username)
         messages = await current_client.get_messages(entity, limit=limit)
