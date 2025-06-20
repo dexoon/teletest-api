@@ -43,7 +43,7 @@ async def callback_other(callback_query: types.CallbackQuery):
 
 @dp.message()
 async def echo(message: types.Message):
-    if not message.text.startswith("/"):
+    if message.text and not message.text.startswith("/"):
         await message.answer(f"echo: {message.text}")
 
 async def main():
