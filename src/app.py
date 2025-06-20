@@ -151,10 +151,6 @@ async def send_message(
     api_id = creds.api_id
     api_hash = creds.api_hash
     session_string = creds.session_string
-
-    api_id = creds.api_id
-    api_hash = creds.api_hash
-    session_string = creds.session_string
     
     bot_responses: List[BotResponse] = []
 
