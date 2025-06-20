@@ -29,9 +29,44 @@ DEFAULT_SESSION = os.getenv("TELEGRAM_SESSION_STRING")
 if not all([DEFAULT_API_ID, DEFAULT_API_HASH, DEFAULT_SESSION]):
     raise RuntimeError("Default TELEGRAM_API_ID, TELEGRAM_API_HASH, and TELEGRAM_SESSION_STRING must be set in environment variables")
 
-# Global client instance, initialized as None. Will be set up in startup_event.
+# Global client instance, initialized as None. Will be set up in the lifespan manager.
 client: Optional[TelegramClient] = None
-app = FastAPI(title="Telegram Bot Test API")
+# app will be defined after the lifespan manager
+
+@asynccontextmanager
+async def lifespan(app_instance: FastAPI):
+    global client # We are modifying the global client variable
+    # Startup logic
+    # Fetch current environment variables for client setup.
+    current_api_id = os.getenv("TELEGRAM_API_ID")
+    current_api_hash = os.getenv("TELEGRAM_API_HASH")
+    current_session_string = os.getenv("TELEGRAM_SESSION_STRING")
+
+    if not all([current_api_id, current_api_hash, current_session_string]):
+        raise RuntimeError(
+            "Lifespan Startup Error: TELEGRAM_API_ID, TELEGRAM_API_HASH, and TELEGRAM_SESSION_STRING must be set in environment for client startup."
+        )
+
+    if client is None: # Ensure client is initialized
+        loop = asyncio.get_running_loop()
+        client = TelegramClient(
+            StringSession(current_session_string),
+            int(current_api_id),
+            current_api_hash,
+            loop=loop
+        )
+    
+    if not client.is_connected():
+        await client.start()
+    
+    yield # Application runs here
+
+    # Shutdown logic
+    if client and client.is_connected():
+        await client.disconnect()
+    # client = None # Optionally reset client
+
+app = FastAPI(title="Telegram Bot Test API", lifespan=lifespan)
 
 
 @asynccontextmanager
@@ -67,49 +102,10 @@ async def get_telegram_client(
             # print("Warning: Global client was not connected in get_telegram_client, attempting to start.")
             await client.start()
         yield client
-        # Global client's lifecycle is managed by startup/shutdown events
+        # Global client's lifecycle is managed by startup/shutdown events, now via lifespan manager
 
 
-@app.on_event("startup")
-async def startup_event() -> None:
-    global client # We are modifying the global client variable
-
-    # Fetch current environment variables for client setup.
-    # These are expected to be set by the time the app starts.
-    # In tests, conftest.py's load_dotenv ensures these are available from .env.test before src.app is reloaded.
-    current_api_id = os.getenv("TELEGRAM_API_ID")
-    current_api_hash = os.getenv("TELEGRAM_API_HASH")
-    current_session_string = os.getenv("TELEGRAM_SESSION_STRING")
-
-    # These should have been checked at module level already for defaults,
-    # but good to ensure they are present for client instantiation here.
-    if not all([current_api_id, current_api_hash, current_session_string]):
-        raise RuntimeError(
-            "Startup Error: TELEGRAM_API_ID, TELEGRAM_API_HASH, and TELEGRAM_SESSION_STRING must be set in environment for client startup."
-        )
-
-    # Instantiate the client if it hasn't been already
-    if client is None:
-        loop = asyncio.get_running_loop()
-        client = TelegramClient(
-            StringSession(current_session_string),
-            int(current_api_id),
-            current_api_hash,
-            loop=loop
-        )
-    
-    # Ensure the client is started
-    if not client.is_connected():
-        await client.start()
-
-
-@app.on_event("shutdown")
-async def shutdown_event() -> None:
-    global client
-    if client and client.is_connected():
-        await client.disconnect()
-    # client = None # Optionally reset client to None
-
+# Old event handlers are removed as their logic is now in the lifespan manager.
 
 def _parse_buttons(message: types.Message) -> Optional[List[List[MessageButton]]]:
     if not message.buttons:
