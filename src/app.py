@@ -15,7 +15,8 @@ from .models import (
     PressButtonRequest,
     GetMessagesResponse,
     MessageButton,
-    TelegramCredentialsRequest
+    TelegramCredentialsRequest,
+    ResponseType,
 )
 
 load_dotenv()  # Load environment variables from .env file
@@ -160,6 +161,7 @@ async def send_message(
         except asyncio.TimeoutError:
             raise HTTPException(status_code=504, detail="Timeout waiting for bot response")
     return BotResponse(
+        response_type=ResponseType.MESSAGE,
         message_text=response.raw_text,
         reply_markup=_parse_buttons(response),
     )
@@ -222,6 +224,7 @@ async def press_button(
             raise HTTPException(status_code=504, detail="Timeout waiting for bot response to button press")
 
     return BotResponse(
+        response_type=ResponseType.MESSAGE, # Assuming a new message is the primary response
         message_text=response.raw_text,
         reply_markup=_parse_buttons(response),
     )
@@ -241,5 +244,5 @@ async def get_messages(
         messages = await current_client.get_messages(entity, limit=limit)
         msgs: List[BotResponse] = []
         for m in reversed(messages):
-            msgs.append(BotResponse(message_text=m.raw_text, reply_markup=_parse_buttons(m)))
+            msgs.append(BotResponse(response_type=ResponseType.MESSAGE, message_text=m.raw_text, reply_markup=_parse_buttons(m)))
     return GetMessagesResponse(messages=msgs)
