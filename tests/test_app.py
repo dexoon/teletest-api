@@ -21,6 +21,8 @@ def test_ping(app, ping_bot): # ping_bot fixture is already here, no change need
         data = data_list[0]
         assert data["response_type"] == "message"
         assert data["message_text"] == "pong"
+        assert "message_id" in data
+        assert isinstance(data["message_id"], int)
 
 
 def test_buttons_and_press(app, ping_bot): # ping_bot fixture is already here, no change needed for this line
@@ -38,6 +40,8 @@ def test_buttons_and_press(app, ping_bot): # ping_bot fixture is already here, n
         assert len(data_list) == 1
         data = data_list[0]
         assert data["response_type"] == "message"
+        assert "message_id" in data
+        assert isinstance(data["message_id"], int)
         assert data["reply_markup"]
         assert data["reply_markup"][0][0]["text"] == "A"
 
@@ -52,6 +56,8 @@ def test_buttons_and_press(app, ping_bot): # ping_bot fixture is already here, n
         assert len(data_list2) == 1
         data2 = data_list2[0]
         assert data2["response_type"] == "message"
+        assert "message_id" in data2
+        assert isinstance(data2["message_id"], int)
         assert data2["message_text"] == "You chose A"
 
 
@@ -76,6 +82,8 @@ def test_get_messages(app, ping_bot): # Renamed from test_get_and_reset_messages
         assert len(ping_data_list) == 1
         ping_data = ping_data_list[0]
         assert ping_data["response_type"] == "message"
+        assert "message_id" in ping_data
+        assert isinstance(ping_data["message_id"], int)
         assert ping_data["message_text"] == "pong" # Ensure the bot responded
 
         # Now get messages
@@ -94,10 +102,12 @@ def test_get_messages(app, ping_bot): # Renamed from test_get_and_reset_messages
         
         # Check if any message in the list is a "pong" message response
         pong_received = any(
-            msg.get("response_type") == "message" and msg.get("message_text") == "pong"
+            msg.get("response_type") == "message" 
+            and msg.get("message_text") == "pong" 
+            and isinstance(msg.get("message_id"), int)
             for msg in msgs
         )
-        assert pong_received, "Did not receive 'pong' message from the bot"
+        assert pong_received, "Did not receive 'pong' message (with ID) from the bot"
 
 def test_send_message_timeout(app, ping_bot):
     bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")

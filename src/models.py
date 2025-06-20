@@ -19,6 +19,7 @@ class MessageButton(BaseModel):
 
 class BotResponse(BaseModel):
     response_type: ResponseType
+    message_id: Optional[int] = None # For MESSAGE, EDITED_MESSAGE
     message_text: Optional[str] = None  # For MESSAGE, EDITED_MESSAGE
     reply_markup: Optional[List[List[MessageButton]]] = None # For MESSAGE, EDITED_MESSAGE
     

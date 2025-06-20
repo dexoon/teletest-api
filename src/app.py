@@ -162,6 +162,7 @@ async def send_message(
             return []  # Return empty list on timeout
     return [BotResponse(
         response_type=ResponseType.MESSAGE,
+        message_id=response.id,
         message_text=response.raw_text,
         reply_markup=_parse_buttons(response),
     )]
@@ -225,6 +226,7 @@ async def press_button(
 
     return [BotResponse(
         response_type=ResponseType.MESSAGE, # Assuming a new message is the primary response
+        message_id=response.id,
         message_text=response.raw_text,
         reply_markup=_parse_buttons(response),
     )]
@@ -244,5 +246,5 @@ async def get_messages(
         messages = await current_client.get_messages(entity, limit=limit)
         msgs: List[BotResponse] = []
         for m in reversed(messages):
-            msgs.append(BotResponse(response_type=ResponseType.MESSAGE, message_text=m.raw_text, reply_markup=_parse_buttons(m)))
+            msgs.append(BotResponse(response_type=ResponseType.MESSAGE, message_id=m.id, message_text=m.raw_text, reply_markup=_parse_buttons(m)))
     return GetMessagesResponse(messages=msgs)
