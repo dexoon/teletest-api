@@ -214,7 +214,7 @@ async def press_button(
                     # message_to_click is bound to current_client which is used for the conversation
                     await message_to_click.click(text=req.button_text, data=req.callback_data)
                 except Exception as e: 
-                    raise HTTPException(status_code=400, detail=f"Failed to press button: {e}")
+                    raise HTTPException(status_code=400, detail=f"Failed to press button: {e}") from e
                 
                 # Loop to collect responses after clicking
                 while True:
