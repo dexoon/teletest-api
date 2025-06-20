@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from pathlib import Path
 
 
-def test_ping(app, real_bot_container):
+def test_ping(app, real_bot_container): # real_bot_container fixture is already here, no change needed for this line
     client = TestClient(app)
     resp = client.post(
         "/send-message",
@@ -16,7 +16,7 @@ def test_ping(app, real_bot_container):
     assert resp.json()["message_text"] == "pong"
 
 
-def test_buttons_and_press(app, real_bot_container):
+def test_buttons_and_press(app, real_bot_container): # real_bot_container fixture is already here, no change needed for this line
     client = TestClient(app)
     # send command that returns buttons
     resp = client.post(
@@ -37,7 +37,7 @@ def test_buttons_and_press(app, real_bot_container):
     assert resp2.json()["message_text"] == "You chose A"
 
 
-def test_get_and_reset_messages(app, real_bot_container):
+def test_get_and_reset_messages(app, real_bot_container): # real_bot_container fixture is already here, no change needed for this line
     client = TestClient(app)
     client.post(
         "/send-message",
