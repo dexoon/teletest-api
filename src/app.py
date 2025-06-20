@@ -77,7 +77,7 @@ async def get_telegram_client(
     custom_api_id: Optional[int] = None,
     custom_api_hash: Optional[str] = None,
     custom_session_string: Optional[str] = None,
-) -> AsyncGenerator[TelegramClient]:
+) -> AsyncGenerator[TelegramClient, None]:
     global client # Ensure we're referring to the module-level client
     if custom_api_id is not None and custom_api_hash and custom_session_string:
         # All custom credentials provided, create a new temporary client
