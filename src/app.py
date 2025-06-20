@@ -14,7 +14,6 @@ from .models import (
     BotResponse,
     PressButtonRequest,
     GetMessagesResponse,
-    ResetChatRequest,
     MessageButton,
     TelegramCredentialsRequest,
 )
