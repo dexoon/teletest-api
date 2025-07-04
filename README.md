@@ -76,7 +76,9 @@ Usage example:
 ```ts
 import TeletestApiClient from "teletest-api-client";
 const client = new TeletestApiClient("http://localhost:8000");
-client.sendMessage({ bot_username: "mybot", message_text: "/ping" }).then(console.log);
+client.sendMessage({ bot_username: "mybot", message_text: "/ping" }).then((responses) => {
+  console.log(responses[0].message_text);
+});
 ```
 
 ## Python client
@@ -90,8 +92,8 @@ Usage example:
 from clients.python_client import TeletestApiClient, SendMessageRequest
 
 client = TeletestApiClient("http://localhost:8000")
-resp = client.send_message(SendMessageRequest(bot_username="mybot", message_text="/ping"))
-print(resp.message_text)
+responses = client.send_message(SendMessageRequest(bot_username="mybot", message_text="/ping"))
+print(responses[0].message_text)
 ```
 
 ## Running tests with a real bot

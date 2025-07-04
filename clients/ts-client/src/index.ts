@@ -11,9 +11,20 @@ export interface MessageButton {
   callback_data?: string | null;
 }
 
+export type ResponseType =
+  | 'message'
+  | 'edited_message'
+  | 'callback_answer'
+  | 'popup';
+
 export interface BotResponse {
-  message_text: string;
+  response_type: ResponseType;
+  message_id?: number;
+  message_text?: string;
   reply_markup?: MessageButton[][] | null;
+  callback_answer_text?: string;
+  callback_answer_alert?: boolean;
+  popup_message?: string;
 }
 
 export interface SendMessageRequest {
@@ -45,15 +56,15 @@ function buildHeaders(creds?: TelegramCredentialsRequest): Record<string, string
 export class TeletestApiClient {
   constructor(private baseUrl: string, private http: AxiosInstance = axios.create()) {}
 
-  async sendMessage(req: SendMessageRequest, creds?: TelegramCredentialsRequest): Promise<BotResponse> {
-    const resp = await this.http.post<BotResponse>(`${this.baseUrl}/send-message`, req, {
+  async sendMessage(req: SendMessageRequest, creds?: TelegramCredentialsRequest): Promise<BotResponse[]> {
+    const resp = await this.http.post<BotResponse[]>(`${this.baseUrl}/send-message`, req, {
       headers: buildHeaders(creds)
     });
     return resp.data;
   }
 
-  async pressButton(req: PressButtonRequest, creds?: TelegramCredentialsRequest): Promise<BotResponse> {
-    const resp = await this.http.post<BotResponse>(`${this.baseUrl}/press-button`, req, {
+  async pressButton(req: PressButtonRequest, creds?: TelegramCredentialsRequest): Promise<BotResponse[]> {
+    const resp = await this.http.post<BotResponse[]>(`${this.baseUrl}/press-button`, req, {
       headers: buildHeaders(creds)
     });
     return resp.data;
