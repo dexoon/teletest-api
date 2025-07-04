@@ -14,9 +14,9 @@ A small FastAPI service for testing Telegram bots with a real user account via T
 
     Required variables:
 
-- `TELEGRAM_API_ID` – your API ID
-- `TELEGRAM_API_HASH` – your API hash
-- `TELEGRAM_SESSION_STRING` – session string for the account
+- `API_ID` – your API ID
+- `API_HASH` – your API hash
+- `SESSION_STRING` – session string for the account
 
 To obtain the session string you can run the helper script:
 
@@ -36,9 +36,9 @@ Alternatively you can run the service with Docker:
 ```bash
 docker build -t teletest-api .
 docker run -p 8000:8000 \
-  -e TELEGRAM_API_ID=... \
-  -e TELEGRAM_API_HASH=... \
-  -e TELEGRAM_SESSION_STRING=... \
+  -e API_ID=... \
+  -e API_HASH=... \
+  -e SESSION_STRING=... \
   teletest-api
 ```
 
@@ -98,8 +98,8 @@ print(resp.message_text)
 
 The test suite can interact with a live Telegram bot if you provide the required credentials:
 
-- `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` and `TELEGRAM_SESSION_STRING` for the user account
-- `TELEGRAM_BOT_TOKEN` for the bot to respond to commands
+- `API_ID`, `API_HASH` and `SESSION_STRING` for the user account
+- `TEST_BOT_TOKEN` for the bot to respond to commands
 - set `RUN_REAL_BOT_TESTS=1` to enable the real bot tests
 
 Running the tests will start the simple bot defined in `tests/real_bot.py` and exercise the API against it.

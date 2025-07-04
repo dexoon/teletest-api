@@ -3,9 +3,9 @@ import asyncio
 from aiogram import Bot
 
 async def main():
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    bot_token = os.getenv("TEST_BOT_TOKEN")
     if not bot_token:
-        print("Error: TELEGRAM_BOT_TOKEN not set in environment.")
+        print("Error: TEST_BOT_TOKEN not set in environment.")
         return
 
     bot = Bot(token=bot_token)
