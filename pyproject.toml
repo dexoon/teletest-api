@@ -16,3 +16,6 @@ test = [
     "pytest>=8.4.1",
     "httpx>=0.28.1",
 ]
+
+[tool.uv.workspace]
+members = ["clients/python-client"]
