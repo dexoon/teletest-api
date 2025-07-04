@@ -21,3 +21,6 @@ test = [
     "aiogram>=3.20.0.post0",
     "pytest-rerunfailures>=13.0", # Added pytest-rerunfailures
 ]
+
+[tool.uv.workspace]
+members = ["clients/python-client"]

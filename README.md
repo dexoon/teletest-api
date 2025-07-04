@@ -62,6 +62,38 @@ Custom Telegram credentials can be provided via HTTP headers:
 - `X-Telegram-Api-Hash`
 - `X-Telegram-Session-String`
 
+## TypeScript client
+
+A small TypeScript client is available in `clients/ts-client`. Build it with:
+
+```bash
+cd clients/ts-client
+npm install
+npm run build
+```
+Usage example:
+
+```ts
+import TeletestApiClient from "teletest-api-client";
+const client = new TeletestApiClient("http://localhost:8000");
+client.sendMessage({ bot_username: "mybot", message_text: "/ping" }).then(console.log);
+```
+
+## Python client
+
+A small synchronous Python client lives in `clients/python-client`.
+It requires the `requests` library which can be installed with `pip install requests`.
+
+Usage example:
+
+```python
+from clients.python_client import TeletestApiClient, SendMessageRequest
+
+client = TeletestApiClient("http://localhost:8000")
+resp = client.send_message(SendMessageRequest(bot_username="mybot", message_text="/ping"))
+print(resp.message_text)
+```
+
 ## Running tests with a real bot
 
 The test suite can interact with a live Telegram bot if you provide the required credentials:
