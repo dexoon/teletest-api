@@ -1,5 +1,5 @@
 [project]
-name = "python_client"
+name = "teletest_python_client"
 version = "0.1.0"
 description = "Client for teletest-api"
 readme = "README.md"
