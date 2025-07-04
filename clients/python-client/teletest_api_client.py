@@ -71,36 +71,31 @@ class TeletestApiClient:
         resp.raise_for_status()
         return resp.json()
 
+    def _parse_reply_markup(self, reply_markup_data: Any) -> Optional[List[List[MessageButton]]]:
+        if not reply_markup_data:
+            return None
+        return [
+            [MessageButton(**btn) for btn in row] for row in reply_markup_data
+        ]
+
+    def _parse_bot_response(self, resp: Dict[str, Any]) -> BotResponse:
+        return BotResponse(
+            message_text=resp["message_text"],
+            reply_markup=self._parse_reply_markup(resp.get("reply_markup"))
+        )
+
     def send_message(self, req: SendMessageRequest, creds: Optional[TelegramCredentialsRequest] = None) -> BotResponse:
         data = {k: v for k, v in req.__dict__.items() if v is not None}
         resp = self._post("/send-message", data, creds)
-        return BotResponse(
-            message_text=resp["message_text"],
-            reply_markup=[
-                [MessageButton(**btn) for btn in row] for row in resp.get("reply_markup", [])
-            ] if resp.get("reply_markup") else None,
-        )
+        return self._parse_bot_response(resp)
 
     def press_button(self, req: PressButtonRequest, creds: Optional[TelegramCredentialsRequest] = None) -> BotResponse:
         data = {k: v for k, v in req.__dict__.items() if v is not None}
         resp = self._post("/press-button", data, creds)
-        return BotResponse(
-            message_text=resp["message_text"],
-            reply_markup=[
-                [MessageButton(**btn) for btn in row] for row in resp.get("reply_markup", [])
-            ] if resp.get("reply_markup") else None,
-        )
+        return self._parse_bot_response(resp)
 
     def get_messages(self, bot_username: str, limit: int = 5, creds: Optional[TelegramCredentialsRequest] = None) -> GetMessagesResponse:
         resp = self._get("/get-messages", {"bot_username": bot_username, "limit": limit}, creds)
-        messages = [
-            BotResponse(
-                message_text=m["message_text"],
-                reply_markup=[
-                    [MessageButton(**btn) for btn in row] for row in m.get("reply_markup", [])
-                ] if m.get("reply_markup") else None,
-            )
-            for m in resp["messages"]
-        ]
+        messages = [self._parse_bot_response(m) for m in resp["messages"]]
         return GetMessagesResponse(messages=messages)
 
