@@ -2,7 +2,7 @@ import os
 import asyncio
 import logging
 import time
-from typing import List, Optional, AsyncGenerator
+from typing import List, Optional, AsyncGenerator, Tuple
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
@@ -140,13 +140,20 @@ async def get_header_credentials(
     """Extract optional Telegram credentials from request headers."""
     return TelegramCredentialsRequest(api_id=api_id, api_hash=api_hash, session_string=session_string)
 
-def _parse_buttons(message: types.Message) -> Optional[List[List[MessageButton]]]:
-    if not message.buttons:
-        return None
+def _parse_markup(message: types.Message) -> Tuple[Optional[List[List[MessageButton]]], bool]:
+    markup = getattr(message, "reply_markup", None)
+    if not markup:
+        return None, False
+
+    is_reply_keyboard = isinstance(markup, types.ReplyKeyboardMarkup)
+
+    if not isinstance(markup, (types.ReplyKeyboardMarkup, types.ReplyInlineMarkup)):
+        return None, is_reply_keyboard
+
     rows: List[List[MessageButton]] = []
-    for row in message.buttons:
-        row_data = []
-        for button in row:
+    for row in markup.rows:
+        row_data: List[MessageButton] = []
+        for button in row.buttons:
             text = getattr(button, "text", "")
             data = getattr(button, "data", None)
             if isinstance(data, bytes):
@@ -160,7 +167,7 @@ def _parse_buttons(message: types.Message) -> Optional[List[List[MessageButton]]
                 callback_data = None
             row_data.append(MessageButton(text=text, callback_data=callback_data))
         rows.append(row_data)
-    return rows
+    return rows, is_reply_keyboard
 
 
 @app.post("/send-message", response_model=List[BotResponse])
@@ -191,11 +198,13 @@ async def send_message(
                         # Use the remaining timeout for each response attempt
                         response = await conv.get_response(timeout=remaining_timeout)
                         logger.debug("Received response %s", response.raw_text)
+                        reply_markup, reply_kb = _parse_markup(response)
                         bot_responses.append(BotResponse(
                             response_type=ResponseType.MESSAGE,
                             message_id=response.id,
                             message_text=response.raw_text,
-                            reply_markup=_parse_buttons(response),
+                            reply_markup=reply_markup,
+                            reply_keyboard=reply_kb,
                         ))
                         
                         # Update remaining timeout
@@ -262,11 +271,13 @@ async def press_button(
                             timeout=remaining_timeout
                         )
                         logger.debug("Received event message %s", response_event.raw_text)
+                        reply_markup, reply_kb = _parse_markup(response_event)
                         bot_responses.append(BotResponse(
                             response_type=ResponseType.MESSAGE,
                             message_id=response_event.id,
                             message_text=response_event.raw_text,
-                            reply_markup=_parse_buttons(response_event),
+                            reply_markup=reply_markup,
+                            reply_keyboard=reply_kb,
                         ))
                         
                         # Update remaining timeout
@@ -302,7 +313,14 @@ async def get_messages(
         logger.debug("Fetched %d messages", len(messages))
         msgs: List[BotResponse] = []
         for m in reversed(messages):
-            msgs.append(BotResponse(response_type=ResponseType.MESSAGE, message_id=m.id, message_text=m.raw_text, reply_markup=_parse_buttons(m)))
+            reply_markup, reply_kb = _parse_markup(m)
+            msgs.append(BotResponse(
+                response_type=ResponseType.MESSAGE,
+                message_id=m.id,
+                message_text=m.raw_text,
+                reply_markup=reply_markup,
+                reply_keyboard=reply_kb,
+            ))
     return GetMessagesResponse(messages=msgs)
 
 
@@ -326,10 +344,12 @@ async def get_updates(
         if raw_messages:
             # Reverse to get chronological order (oldest of the batch first)
             for m in reversed(raw_messages):
+                reply_markup, reply_kb = _parse_markup(m)
                 processed_messages.append(BotResponse(
                     response_type=ResponseType.MESSAGE,
                     message_id=m.id,
                     message_text=m.raw_text,
-                    reply_markup=_parse_buttons(m)
+                    reply_markup=reply_markup,
+                    reply_keyboard=reply_kb,
                 ))
     return GetMessagesResponse(messages=processed_messages)

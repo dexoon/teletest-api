@@ -383,6 +383,7 @@ def test_reply_keyboard(app, ping_bot):
         choose_msg = find_message_with_text(show_responses, "Choose an option:")
         assert choose_msg, f"Did not find reply keyboard message in {show_responses}"
         assert choose_msg["reply_markup"], "Reply keyboard not present on message"
+        assert choose_msg["reply_keyboard"] is True
         assert choose_msg["reply_markup"][0][0]["text"] == "Option 1"
 
         # Select first option using send_message
@@ -394,6 +395,7 @@ def test_reply_keyboard(app, ping_bot):
         press_responses = resp_press.json()
         selected = find_message_with_text(press_responses, "You chose option 1")
         assert selected, f"Response to reply keyboard selection not found in {press_responses}"
+        assert selected["reply_keyboard"] is False
 
         # Remove keyboard to not interfere with other tests
         resp_remove = client.post(
