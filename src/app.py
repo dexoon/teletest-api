@@ -22,7 +22,9 @@ from .models import (
 
 load_dotenv()  # Load environment variables from .env file
 
-logging.basicConfig(level=logging.INFO)
+# Configure logging level based on DEBUG env variable
+DEBUG_MODE = os.getenv("DEBUG", "0").lower() in ("1", "true", "yes")
+logging.basicConfig(level=logging.DEBUG if DEBUG_MODE else logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Default credentials from environment variables

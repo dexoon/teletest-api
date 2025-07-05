@@ -18,6 +18,10 @@ A small FastAPI service for testing Telegram bots with a real user account via T
 - `API_HASH` – your API hash
 - `SESSION_STRING` – session string for the account
 
+    Optional variables:
+
+- `DEBUG` – set to `1` or `true` to enable verbose debug logging
+
 To obtain the session string you can run the helper script:
 
 ```bash
