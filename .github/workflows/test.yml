@@ -23,7 +23,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          uv pip install -e .[test]
+          uv sync --extra test
 
       - name: Run tests
         env:
@@ -31,4 +31,4 @@ jobs:
           API_HASH: ${{ secrets.API_HASH }}
           SESSION_STRING: ${{ secrets.SESSION_STRING }}
           TEST_BOT_TOKEN: ${{ secrets.TEST_BOT_TOKEN }}
-        run: pytest
+        run: uv run pytest
