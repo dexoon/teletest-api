@@ -9,8 +9,12 @@ import logging
 # Configure logging for conftest
 # To see these logs with pytest, you might need:
 # pytest -o log_cli=true -o log_cli_level=INFO -s (the -s flag captures stdout/stderr and loggin)
+debug_mode = os.getenv("DEBUG", "0").lower() in ("1", "true", "yes")
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.DEBUG if debug_mode else logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 
 @pytest.fixture(scope="session", autouse=True)
