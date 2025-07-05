@@ -1,5 +1,6 @@
 import os
 import asyncio
+import logging
 from typing import List, Optional, AsyncGenerator
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
@@ -21,6 +22,9 @@ from .models import (
 
 load_dotenv()  # Load environment variables from .env file
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # Default credentials from environment variables
 DEFAULT_API_ID = os.getenv("API_ID")
 DEFAULT_API_HASH = os.getenv("API_HASH")
@@ -36,11 +40,18 @@ client: Optional[TelegramClient] = None
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     global client # We are modifying the global client variable
+    logger.info("Lifespan startup")
     # Startup logic
     # Fetch current environment variables for client setup.
     current_api_id = os.getenv("API_ID")
     current_api_hash = os.getenv("API_HASH")
     current_session_string = os.getenv("SESSION_STRING")
+    logger.debug(
+        "Credentials presence - API_ID: %s, API_HASH: %s, SESSION_STRING: %s",
+        bool(current_api_id),
+        bool(current_api_hash),
+        bool(current_session_string),
+    )
 
     if not all([current_api_id, current_api_hash, current_session_string]):
         raise RuntimeError(
@@ -60,14 +71,18 @@ async def lifespan(app_instance: FastAPI):
             current_api_hash,
             loop=loop
         )
+        logger.debug("Telegram client initialized")
     
     if not client.is_connected():
+        logger.debug("Starting Telegram client connection")
         await client.start()
     
     yield # Application runs here
+    logger.info("Lifespan shutdown")
 
     # Shutdown logic
     if client and client.is_connected():
+        logger.debug("Disconnecting Telegram client")
         client.disconnect()
     # client = None # Optionally reset client
 
@@ -81,8 +96,10 @@ async def get_telegram_client(
     custom_session_string: Optional[str] = None,
 ) -> AsyncGenerator[TelegramClient, None]:
     global client # Ensure we're referring to the module-level client
+    logger.debug("get_telegram_client called with custom creds: %s", bool(custom_session_string))
     if custom_api_id is not None and custom_api_hash and custom_session_string:
         # All custom credentials provided, create a new temporary client
+        logger.debug("Creating temporary Telegram client")
         loop = asyncio.get_running_loop()
         temp_client = TelegramClient(
             StringSession(custom_session_string),
@@ -94,17 +111,17 @@ async def get_telegram_client(
         try:
             yield temp_client
         finally:
+            logger.debug("Disconnecting temporary client")
             temp_client.disconnect()
     else:
         # Use the global client
         if client is None:
             # This should not happen if startup_event ran correctly.
             raise RuntimeError("Global Telegram client has not been initialized. Check application startup logic.")
-        
+
         if not client.is_connected():
             # This is a fallback/defensive measure. Startup should handle connection.
-            # Consider logging a warning here if it happens.
-            # print("Warning: Global client was not connected in get_telegram_client, attempting to start.")
+            logger.warning("Global client not connected in get_telegram_client; starting now")
             client.start()
         yield client
         # Global client's lifecycle is managed by startup/shutdown events, now via lifespan manager
@@ -148,6 +165,7 @@ async def send_message(
     req: SendMessageRequest,
     creds: TelegramCredentialsRequest = Depends(get_header_credentials),
 ) -> List[BotResponse]:
+    logger.info("send_message called for %s", req.bot_username)
     api_id = creds.api_id
     api_hash = creds.api_hash
     session_string = creds.session_string
@@ -166,6 +184,7 @@ async def send_message(
                         # This allows the loop to iterate or exit if no immediate message,
                         # while the overall operation is bounded by req.timeout_sec.
                         response = await conv.get_response(timeout=0.2) # Poll for 0.2 seconds
+                        logger.debug("Received response %s", response.raw_text)
                         bot_responses.append(BotResponse(
                             response_type=ResponseType.MESSAGE,
                             message_id=response.id,
@@ -175,10 +194,12 @@ async def send_message(
                     except asyncio.TimeoutError:
                         # This timeout means conv.get_response(timeout=1.0) found no message in 1s.
                         # Break from this inner loop.
-                        break 
+                        logger.debug("No more responses from bot")
+                        break
         except asyncio.TimeoutError:
             # This timeout is for the entire conversation (req.timeout_sec).
             # Return whatever has been collected so far.
+            logger.warning("Conversation with %s timed out", req.bot_username)
             return bot_responses
         
     return bot_responses
@@ -189,6 +210,7 @@ async def press_button(
     req: PressButtonRequest,
     creds: TelegramCredentialsRequest = Depends(get_header_credentials),
 ) -> List[BotResponse]:
+    logger.info("press_button called for %s", req.bot_username)
     if not req.button_text and not req.callback_data:
         raise HTTPException(status_code=400, detail="button_text or callback_data required")
 
@@ -206,6 +228,7 @@ async def press_button(
         if not messages:
             raise HTTPException(status_code=404, detail="No messages to interact with")
         message_to_click = messages[0]
+        logger.debug("Clicking button on message %s", message_to_click.id)
 
         try:
             async with current_client.conversation(entity, timeout=req.timeout_sec) as conv:
@@ -224,6 +247,7 @@ async def press_button(
                             events.NewMessage(incoming=True, from_users=entity, chats=entity),
                             timeout=0.2 # Poll for 0.2 seconds
                         )
+                        logger.debug("Received event message %s", response_event.raw_text)
                         bot_responses.append(BotResponse(
                             response_type=ResponseType.MESSAGE,
                             message_id=response_event.id,
@@ -233,10 +257,12 @@ async def press_button(
                     except asyncio.TimeoutError:
                         # No new message event within the internal poll timeout (1s).
                         # Break from this inner loop.
+                        logger.debug("No further events from bot")
                         break
         except asyncio.TimeoutError:
             # Conversation timeout (req.timeout_sec).
             # Return whatever has been collected so far.
+            logger.warning("Conversation with %s timed out during press_button", req.bot_username)
             return bot_responses
             
     return bot_responses
@@ -248,12 +274,14 @@ async def get_messages(
     limit: int = 5,
     creds: TelegramCredentialsRequest = Depends(get_header_credentials),
 ) -> GetMessagesResponse:
+    logger.info("get_messages called for %s", bot_username)
     api_id = creds.api_id
     api_hash = creds.api_hash
     session_string = creds.session_string
     async with get_telegram_client(api_id, api_hash, session_string) as current_client:
         entity = await current_client.get_input_entity(bot_username)
         messages = await current_client.get_messages(entity, limit=limit)
+        logger.debug("Fetched %d messages", len(messages))
         msgs: List[BotResponse] = []
         for m in reversed(messages):
             msgs.append(BotResponse(response_type=ResponseType.MESSAGE, message_id=m.id, message_text=m.raw_text, reply_markup=_parse_buttons(m)))
@@ -266,6 +294,7 @@ async def get_updates(
     limit: int = 10, # Default limit for updates
     creds: TelegramCredentialsRequest = Depends(get_header_credentials),
 ) -> GetMessagesResponse:
+    logger.info("get_updates called for %s", bot_username)
     api_id = creds.api_id
     api_hash = creds.api_hash
     session_string = creds.session_string
@@ -273,6 +302,7 @@ async def get_updates(
         entity = await current_client.get_input_entity(bot_username)
         # Fetch messages, newest first
         raw_messages = await current_client.get_messages(entity, limit=limit)
+        logger.debug("Fetched %d updates", len(raw_messages))
         
         processed_messages: List[BotResponse] = []
         if raw_messages:
