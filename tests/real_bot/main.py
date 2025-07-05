@@ -1,7 +1,13 @@
 import os
 import asyncio
 from aiogram import Bot, Dispatcher, types
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    ReplyKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardRemove,
+)
 from aiogram.filters import Command
 
 BOT_TOKEN = os.getenv("TEST_BOT_TOKEN")
@@ -88,6 +94,30 @@ async def delay_test(message: types.Message):
     await message.answer("Waiting for 3 seconds...")
     await asyncio.sleep(3)
     await message.answer("Done waiting!")
+
+# Command to test reply keyboard
+@dp.message(Command("reply_kb"))
+async def reply_kb(message: types.Message):
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Option 1")],
+            [KeyboardButton(text="Option 2")],
+        ],
+        resize_keyboard=True,
+    )
+    await message.answer("Choose an option:", reply_markup=keyboard)
+
+@dp.message(lambda m: m.text == "Option 1")
+async def handle_option1(message: types.Message):
+    await message.answer("You chose option 1")
+
+@dp.message(lambda m: m.text == "Option 2")
+async def handle_option2(message: types.Message):
+    await message.answer("You chose option 2")
+
+@dp.message(Command("remove_kb"))
+async def remove_kb(message: types.Message):
+    await message.answer("Keyboard removed", reply_markup=ReplyKeyboardRemove())
 
 # Generic callback handler for unhandled callback data (must be after specific ones)
 @dp.callback_query()

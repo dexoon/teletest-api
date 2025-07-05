@@ -22,6 +22,7 @@ class BotResponse(BaseModel):
     message_id: Optional[int] = None # For MESSAGE, EDITED_MESSAGE
     message_text: Optional[str] = None  # For MESSAGE, EDITED_MESSAGE
     reply_markup: Optional[List[List[MessageButton]]] = None # For MESSAGE, EDITED_MESSAGE
+    reply_keyboard: Optional[bool] = None  # True if reply markup is a ReplyKeyboardMarkup
     
     # For CALLBACK_ANSWER
     callback_answer_text: Optional[str] = None

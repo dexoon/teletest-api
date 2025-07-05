@@ -366,3 +366,43 @@ def test_delay_test(app, ping_bot):
         assert len(send_responses) == 2, f"Expected 2 messages from /delay_test, got: {send_responses}"
         assert send_responses[0]["message_text"] == "Waiting for 3 seconds..."
         assert send_responses[1]["message_text"] == "Done waiting!"
+
+
+def test_reply_keyboard(app, ping_bot):
+    bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")
+    assert bot_username, "TELEGRAM_TEST_BOT_USERNAME environment variable not set"
+    with TestClient(app) as client:
+        # Send command to show reply keyboard
+        resp_show = client.post(
+            "/send-message",
+            json={"bot_username": bot_username, "message_text": "/reply_kb", "timeout_sec": 5},
+        )
+        assert resp_show.status_code == 200
+        show_responses = resp_show.json()
+
+        choose_msg = find_message_with_text(show_responses, "Choose an option:")
+        assert choose_msg, f"Did not find reply keyboard message in {show_responses}"
+        assert choose_msg["reply_markup"], "Reply keyboard not present on message"
+        assert choose_msg["reply_keyboard"] is True
+        assert choose_msg["reply_markup"][0][0]["text"] == "Option 1"
+
+        # Select first option using send_message
+        resp_press = client.post(
+            "/send-message",
+            json={"bot_username": bot_username, "message_text": "Option 1", "timeout_sec": 5},
+        )
+        assert resp_press.status_code == 200
+        press_responses = resp_press.json()
+        selected = find_message_with_text(press_responses, "You chose option 1")
+        assert selected, f"Response to reply keyboard selection not found in {press_responses}"
+        assert selected["reply_keyboard"] is False
+
+        # Remove keyboard to not interfere with other tests
+        resp_remove = client.post(
+            "/send-message",
+            json={"bot_username": bot_username, "message_text": "/remove_kb", "timeout_sec": 5},
+        )
+        assert resp_remove.status_code == 200
+        remove_responses = resp_remove.json()
+        remove_msg = find_message_with_text(remove_responses, "Keyboard removed")
+        assert remove_msg, f"Remove keyboard response not found in {remove_responses}"

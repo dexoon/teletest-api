@@ -22,6 +22,7 @@ export interface BotResponse {
   message_id?: number;
   message_text?: string;
   reply_markup?: MessageButton[][] | null;
+  reply_keyboard?: boolean | null;
   callback_answer_text?: string;
   callback_answer_alert?: boolean;
   popup_message?: string;

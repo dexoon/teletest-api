@@ -42,6 +42,7 @@ class BotResponse:
     message_id: Optional[int] = None
     message_text: Optional[str] = None
     reply_markup: Optional[List[List[MessageButton]]] = None
+    reply_keyboard: Optional[bool] = None
     callback_answer_text: Optional[str] = None
     callback_answer_alert: Optional[bool] = None
     popup_message: Optional[str] = None
@@ -97,6 +98,7 @@ class TeletestApiClient:
             message_id=resp.get("message_id"),
             message_text=resp.get("message_text"),
             reply_markup=self._parse_reply_markup(resp.get("reply_markup")),
+            reply_keyboard=resp.get("reply_keyboard"),
             callback_answer_text=resp.get("callback_answer_text"),
             callback_answer_alert=resp.get("callback_answer_alert"),
             popup_message=resp.get("popup_message"),
