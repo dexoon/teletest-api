@@ -1,6 +1,7 @@
 import os
 import asyncio
 import logging
+import time
 from typing import List, Optional, AsyncGenerator
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
@@ -109,7 +110,7 @@ async def get_telegram_client(
             custom_api_hash,
             loop=loop
         )
-        temp_client.start()
+        await temp_client.start()
         try:
             yield temp_client
         finally:
@@ -124,7 +125,7 @@ async def get_telegram_client(
         if not client.is_connected():
             # This is a fallback/defensive measure. Startup should handle connection.
             logger.warning("Global client not connected in get_telegram_client; starting now")
-            client.start()
+            await client.start()
         yield client
         # Global client's lifecycle is managed by startup/shutdown events, now via lifespan manager
 
@@ -179,13 +180,16 @@ async def send_message(
         try:
             async with current_client.conversation(entity, timeout=req.timeout_sec) as conv:
                 await conv.send_message(req.message_text)
-                # Loop to collect responses
-                while True:
+                
+                # Calculate remaining time for response collection
+                start_time = time.time()
+                remaining_timeout = req.timeout_sec
+                
+                # Loop to collect responses until timeout is reached
+                while remaining_timeout > 0:
                     try:
-                        # Use a short timeout for each attempt to get a response.
-                        # This allows the loop to iterate or exit if no immediate message,
-                        # while the overall operation is bounded by req.timeout_sec.
-                        response = await conv.get_response(timeout=0.2) # Poll for 0.2 seconds
+                        # Use the remaining timeout for each response attempt
+                        response = await conv.get_response(timeout=remaining_timeout)
                         logger.debug("Received response %s", response.raw_text)
                         bot_responses.append(BotResponse(
                             response_type=ResponseType.MESSAGE,
@@ -193,10 +197,14 @@ async def send_message(
                             message_text=response.raw_text,
                             reply_markup=_parse_buttons(response),
                         ))
+                        
+                        # Update remaining timeout
+                        elapsed = time.time() - start_time
+                        remaining_timeout = req.timeout_sec - elapsed
+                        
                     except asyncio.TimeoutError:
-                        # This timeout means conv.get_response(timeout=1.0) found no message in 1s.
-                        # Break from this inner loop.
-                        logger.debug("No more responses from bot")
+                        # No more responses within the remaining timeout
+                        logger.debug("No more responses from bot within timeout")
                         break
         except asyncio.TimeoutError:
             # This timeout is for the entire conversation (req.timeout_sec).
@@ -241,13 +249,17 @@ async def press_button(
                 except Exception as e: 
                     raise HTTPException(status_code=400, detail=f"Failed to press button: {e}") from e
                 
-                # Loop to collect responses after clicking
-                while True:
+                # Calculate remaining time for response collection
+                start_time = time.time()
+                remaining_timeout = req.timeout_sec
+                
+                # Loop to collect responses after clicking until timeout is reached
+                while remaining_timeout > 0:
                     try:
                         # response_event is the message object for NewMessage
                         response_event = await conv.wait_event(
                             events.NewMessage(incoming=True, from_users=entity, chats=entity),
-                            timeout=0.2 # Poll for 0.2 seconds
+                            timeout=remaining_timeout
                         )
                         logger.debug("Received event message %s", response_event.raw_text)
                         bot_responses.append(BotResponse(
@@ -256,10 +268,14 @@ async def press_button(
                             message_text=response_event.raw_text,
                             reply_markup=_parse_buttons(response_event),
                         ))
+                        
+                        # Update remaining timeout
+                        elapsed = time.time() - start_time
+                        remaining_timeout = req.timeout_sec - elapsed
+                        
                     except asyncio.TimeoutError:
-                        # No new message event within the internal poll timeout (1s).
-                        # Break from this inner loop.
-                        logger.debug("No further events from bot")
+                        # No new message event within the remaining timeout
+                        logger.debug("No further events from bot within timeout")
                         break
         except asyncio.TimeoutError:
             # Conversation timeout (req.timeout_sec).
