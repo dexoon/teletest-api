@@ -351,3 +351,18 @@ def test_ack_callback(app, ping_bot):
         assert not any(r.get("message_text") for r in press_responses), \
             f"Pressing 'Just Ack' should not result in new messages, got: {press_responses}"
 
+def test_delay_test(app, ping_bot):
+    bot_username = os.getenv("TELEGRAM_TEST_BOT_USERNAME")
+    assert bot_username, "TELEGRAM_TEST_BOT_USERNAME environment variable not set"
+    with TestClient(app) as client:
+        # 1. Send /delay_test to get the message with the button
+        resp_send = client.post(
+            "/send-message",
+            json={"bot_username": bot_username, "message_text": "/delay_test", "timeout_sec": 5},
+        )
+        assert resp_send.status_code == 200
+        send_responses = resp_send.json()
+
+        assert len(send_responses) == 2, f"Expected 2 messages from /delay_test, got: {send_responses}"
+        assert send_responses[0]["message_text"] == "Waiting for 3 seconds..."
+        assert send_responses[1]["message_text"] == "Done waiting!"

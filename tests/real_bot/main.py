@@ -82,6 +82,13 @@ async def ack_test(message: types.Message):
 async def handle_just_ack_button(callback_query: types.CallbackQuery):
     await callback_query.answer("Acknowledged!") # This text might appear as a brief notification
 
+# Command to test bot responding with a delay of 3 seconds
+@dp.message(Command("delay_test"))
+async def delay_test(message: types.Message):
+    await message.answer("Waiting for 3 seconds...")
+    await asyncio.sleep(3)
+    await message.answer("Done waiting!")
+
 # Generic callback handler for unhandled callback data (must be after specific ones)
 @dp.callback_query()
 async def callback_other(callback_query: types.CallbackQuery):
