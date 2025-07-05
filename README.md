@@ -21,6 +21,7 @@ A small FastAPI service for testing Telegram bots with a real user account via T
     Optional variables:
 
 - `DEBUG` – set to `1` or `true` to enable verbose debug logging
+- `VERBOSE` – set to `1` or `true` to log response bodies
 
 To obtain the session string you can run the helper script:
 

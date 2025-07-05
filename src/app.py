@@ -6,7 +6,8 @@ from typing import List, Optional, AsyncGenerator, Tuple
 from dotenv import load_dotenv
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi import FastAPI, HTTPException, Header, Depends, Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 from telethon import TelegramClient, events # Import events
 from telethon.sessions import StringSession
 from telethon import types
@@ -27,6 +28,27 @@ load_dotenv()  # Load environment variables from .env file
 DEBUG_MODE = os.getenv("DEBUG", "0").lower() in ("1", "true", "yes")
 logging.basicConfig(level=logging.DEBUG if DEBUG_MODE else logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Enable verbose logging of response bodies if VERBOSE env variable is set
+VERBOSE_MODE = os.getenv("VERBOSE", "0").lower() in ("1", "true", "yes")
+
+
+class LogResponseBodyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        body = b""
+        async for chunk in response.body_iterator:
+            body += chunk
+        logging.info(
+            f"Response {response.status_code} for {request.method} {request.url.path}: {body!r}"
+        )
+        # Recreate the response because the body iterator has been consumed
+        return Response(
+            content=body,
+            status_code=response.status_code,
+            headers=dict(response.headers),
+            media_type=response.media_type,
+        )
 
 # Default credentials from environment variables
 DEFAULT_API_ID = os.getenv("API_ID")
@@ -90,6 +112,9 @@ async def lifespan(app_instance: FastAPI):
     # client = None # Optionally reset client
 
 app = FastAPI(title="Telegram Bot Test API", lifespan=lifespan)
+
+if VERBOSE_MODE:
+    app.add_middleware(LogResponseBodyMiddleware)
 
 
 @asynccontextmanager
