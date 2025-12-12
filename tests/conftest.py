@@ -5,6 +5,12 @@ import sys
 import os
 import importlib
 import logging
+from typing import Generator
+from fastapi.testclient import TestClient
+
+# Add clients/python-client to path to import TeletestApiClient
+sys.path.append(os.path.join(os.path.dirname(__file__), "../clients/python-client"))
+from teletest_api_client import TeletestApiClient
 
 # Configure logging for conftest
 # To see these logs with pytest, you might need:
@@ -99,3 +105,21 @@ def app():
     logger.info("src.app module reloaded.")
 
     return app_module.app
+
+@pytest.fixture
+def teletest_client(app) -> Generator[TeletestApiClient, None, None]:
+    """
+    Fixture to provide the TeletestApiClient instance.
+    Uses FastAPI's TestClient as the underlying session/transport.
+    """
+    with TestClient(app) as client:
+        # We need to adapt the TestClient to look like a requests.Session
+        # TestClient has .post and .get methods which are sufficient for TeletestApiClient
+        # However, TeletestApiClient uses requests.Session() by default which is not a context manager in the same way,
+        # or rather, TeletestApiClient.__init__ expects a session.
+        # We pass the TestClient instance as the session.
+
+        # TestClient methods return httpx.Response (or requests.Response in older versions)
+        # TeletestApiClient expects .json() and .raise_for_status() on the response, which both support.
+
+        yield TeletestApiClient(base_url="", session=client)
