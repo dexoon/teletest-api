@@ -55,7 +55,7 @@ function buildHeaders(creds?: TelegramCredentialsRequest): Record<string, string
 }
 
 export class TeletestApiClient {
-  constructor(private baseUrl: string, private http: AxiosInstance = axios.create()) {}
+  constructor(private baseUrl: string, private http: AxiosInstance = axios.create()) { }
 
   async sendMessage(req: SendMessageRequest, creds?: TelegramCredentialsRequest): Promise<BotResponse[]> {
     const resp = await this.http.post<BotResponse[]>(`${this.baseUrl}/send-message`, req, {

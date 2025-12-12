@@ -1,6 +1,6 @@
 [project]
 name = "teletest-api"
-version = "0.2.0"
+version = "0.3.0"
 description = "FastAPI service for testing Telegram bots with a real user account"
 license = {text = "MIT"}
 authors = [{name = "Ilia Sukhorukov", email = "dexoon@gmail.com"}]
@@ -22,6 +22,7 @@ test = [
     "httpx>=0.28.1",
     "aiogram>=3.20.0.post0",
     "pytest-rerunfailures>=13.0", # Added pytest-rerunfailures
+    "pytest-asyncio>=0.23.0",
 ]
 
 [tool.uv.workspace]

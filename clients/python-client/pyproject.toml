@@ -1,11 +1,11 @@
 [project]
 name = "teletest_python_client"
-version = "0.2.0"
+version = "0.3.0"
 description = "Client for teletest-api"
 license = {text = "MIT"}
 authors = [{name = "Ilia Sukhorukov", email = "dexoon@gmail.com"}]
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "requests>=2.32.4",
+    "aiohttp>=3.9.0",
 ]
