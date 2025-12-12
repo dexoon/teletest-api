@@ -1,7 +1,9 @@
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, Dict, Any
-import requests
+from typing import Any, Dict, List, Optional
+
+import aiohttp
+
 
 @dataclass
 class TelegramCredentialsRequest:
@@ -69,28 +71,62 @@ class GetMessagesResponse:
 
 
 class TeletestApiClient:
-    """Simple synchronous client for teletest-api."""
+    """Asynchronous client for teletest-api using aiohttp."""
 
-    def __init__(self, base_url: str, session: Optional[requests.Session] = None):
+    def __init__(self, base_url: str, session: Optional[aiohttp.ClientSession] = None):
         self.base_url = base_url.rstrip("/")
-        self.session = session or requests.Session()
+        self._session = session
+        self._own_session = False
 
-    def _post(self, path: str, json: Dict[str, Any], creds: Optional[TelegramCredentialsRequest]) -> Dict[str, Any]:
-        resp = self.session.post(f"{self.base_url}{path}", json=json, headers=_build_headers(creds))
-        resp.raise_for_status()
-        return resp.json()
+    async def _get_session(self) -> aiohttp.ClientSession:
+        if self._session is None:
+            self._session = aiohttp.ClientSession()
+            self._own_session = True
+        return self._session
 
-    def _get(self, path: str, params: Dict[str, Any], creds: Optional[TelegramCredentialsRequest]) -> Dict[str, Any]:
-        resp = self.session.get(f"{self.base_url}{path}", params=params, headers=_build_headers(creds))
-        resp.raise_for_status()
-        return resp.json()
+    async def close(self):
+        if self._own_session and self._session:
+            await self._session.close()
 
-    def _parse_reply_markup(self, reply_markup_data: Any) -> Optional[List[List[MessageButton]]]:
+    async def __aenter__(self):
+        await self._get_session()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()
+
+    async def _post(
+        self,
+        path: str,
+        json: Dict[str, Any],
+        creds: Optional[TelegramCredentialsRequest],
+    ) -> Any:
+        session = await self._get_session()
+        async with session.post(
+            f"{self.base_url}{path}", json=json, headers=_build_headers(creds)
+        ) as resp:
+            resp.raise_for_status()
+            return await resp.json()
+
+    async def _get(
+        self,
+        path: str,
+        params: Dict[str, Any],
+        creds: Optional[TelegramCredentialsRequest],
+    ) -> Any:
+        session = await self._get_session()
+        async with session.get(
+            f"{self.base_url}{path}", params=params, headers=_build_headers(creds)
+        ) as resp:
+            resp.raise_for_status()
+            return await resp.json()
+
+    def _parse_reply_markup(
+        self, reply_markup_data: Any
+    ) -> Optional[List[List[MessageButton]]]:
         if not reply_markup_data:
             return None
-        return [
-            [MessageButton(**btn) for btn in row] for row in reply_markup_data
-        ]
+        return [[MessageButton(**btn) for btn in row] for row in reply_markup_data]
 
     def _parse_bot_response(self, resp: Dict[str, Any]) -> BotResponse:
         return BotResponse(
@@ -104,18 +140,32 @@ class TeletestApiClient:
             popup_message=resp.get("popup_message"),
         )
 
-    def send_message(self, req: SendMessageRequest, creds: Optional[TelegramCredentialsRequest] = None) -> List[BotResponse]:
+    async def send_message(
+        self,
+        req: SendMessageRequest,
+        creds: Optional[TelegramCredentialsRequest] = None,
+    ) -> List[BotResponse]:
         data = {k: v for k, v in req.__dict__.items() if v is not None}
-        resp = self._post("/send-message", data, creds)
+        resp = await self._post("/send-message", data, creds)
         return [self._parse_bot_response(r) for r in resp]
 
-    def press_button(self, req: PressButtonRequest, creds: Optional[TelegramCredentialsRequest] = None) -> List[BotResponse]:
+    async def press_button(
+        self,
+        req: PressButtonRequest,
+        creds: Optional[TelegramCredentialsRequest] = None,
+    ) -> List[BotResponse]:
         data = {k: v for k, v in req.__dict__.items() if v is not None}
-        resp = self._post("/press-button", data, creds)
+        resp = await self._post("/press-button", data, creds)
         return [self._parse_bot_response(r) for r in resp]
 
-    def get_messages(self, bot_username: str, limit: int = 5, creds: Optional[TelegramCredentialsRequest] = None) -> GetMessagesResponse:
-        resp = self._get("/get-messages", {"bot_username": bot_username, "limit": limit}, creds)
+    async def get_messages(
+        self,
+        bot_username: str,
+        limit: int = 5,
+        creds: Optional[TelegramCredentialsRequest] = None,
+    ) -> GetMessagesResponse:
+        resp = await self._get(
+            "/get-messages", {"bot_username": bot_username, "limit": limit}, creds
+        )
         messages = [self._parse_bot_response(m) for m in resp["messages"]]
         return GetMessagesResponse(messages=messages)
-

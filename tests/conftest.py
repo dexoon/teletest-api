@@ -1,12 +1,19 @@
-import subprocess
-import time
-import pytest
-import sys
-import os
 import importlib
 import logging
-from typing import Generator
-from fastapi.testclient import TestClient
+import os
+import subprocess
+import sys
+import threading
+import time
+from typing import AsyncGenerator
+
+import aiohttp
+import pytest
+import pytest_asyncio
+import uvicorn
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Add clients/python-client to path to import TeletestApiClient
 sys.path.append(os.path.join(os.path.dirname(__file__), "../clients/python-client"))
@@ -19,7 +26,7 @@ debug_mode = os.getenv("DEBUG", "0").lower() in ("1", "true", "yes")
 logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.DEBUG if debug_mode else logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
 
@@ -31,28 +38,35 @@ def ping_bot(request):
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
-        # Execute get_me.py inside the container to fetch the bot's username
+    # Execute get_me.py inside the container to fetch the bot's username
     try:
         logger.info("Executing get_me.py to fetch bot username...")
         # Ensure get_me.py is executable if needed, though python execution should be fine.
         # The script get_me.py is expected to be in /app within the container.
         completed_process = subprocess.run(
             [sys.executable, "tests/real_bot/get_me.py"],
-            capture_output=True, text=True, check=True, timeout=30 # Added timeout
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,  # Added timeout
         )
         bot_username_from_get_me = completed_process.stdout.strip()
         if not bot_username_from_get_me or "Error:" in bot_username_from_get_me:
             error_msg = f"Failed to get bot username from get_me.py. Output: {bot_username_from_get_me}"
             logger.error(error_msg)
             pytest.fail(error_msg, pytrace=False)
-        
-        os.environ['TELEGRAM_TEST_BOT_USERNAME'] = bot_username_from_get_me
-        logger.info(f"Successfully fetched and set TELEGRAM_TEST_BOT_USERNAME='{bot_username_from_get_me}'")
+
+        os.environ["TELEGRAM_TEST_BOT_USERNAME"] = bot_username_from_get_me
+        logger.info(
+            f"Successfully fetched and set TELEGRAM_TEST_BOT_USERNAME='{bot_username_from_get_me}'"
+        )
 
     except subprocess.CalledProcessError as e:
         stdout = e.stdout.strip() if e.stdout else "N/A"
         stderr = e.stderr.strip() if e.stderr else "N/A"
-        error_msg = f"Failed to execute get_me.py: {e}\nStdout:\n{stdout}\nStderr:\n{stderr}"
+        error_msg = (
+            f"Failed to execute get_me.py: {e}\nStdout:\n{stdout}\nStderr:\n{stderr}"
+        )
         logger.error(error_msg)
         pytest.fail(error_msg, pytrace=False)
     except subprocess.TimeoutExpired:
@@ -71,14 +85,14 @@ def ping_bot(request):
         proc.kill()
 
 
-@pytest.fixture # function scope by default
-def app():
+@pytest.fixture(scope="session")
+def app_instance():
     """
     Fixture to provide the FastAPI app instance.
     Ensures required environment variables are set (loaded by ping_bot)
     and reloads the app module to pick up any environment changes.
     """
-    logger.info("Setting up app fixture (function-scoped).")
+    logger.info("Setting up app fixture (session-scoped).")
     required_vars = [
         "API_ID",
         "API_HASH",
@@ -101,25 +115,45 @@ def app():
     logger.info("All required environment variables are set.")
     logger.info("Reloading src.app module to pick up environment variables...")
     import src.app as app_module
+
     importlib.reload(app_module)
     logger.info("src.app module reloaded.")
 
     return app_module.app
 
-@pytest.fixture
-def teletest_client(app) -> Generator[TeletestApiClient, None, None]:
+
+@pytest.fixture(scope="session")
+def server(app_instance):
+    """
+    Starts uvicorn server in a separate thread.
+    Returns the base URL.
+    """
+    # Pick a random port or fixed port.
+    port = 8001
+    host = "127.0.0.1"
+    base_url = f"http://{host}:{port}"
+
+    config = uvicorn.Config(app_instance, host=host, port=port, log_level="info")
+    server = uvicorn.Server(config)
+
+    thread = threading.Thread(target=server.run)
+    thread.start()
+
+    # Wait for server to start
+    # We can ping it or just simple sleep, or use uvicorn's startup flag if we had access to it easily.
+    # Simple sleep for now, but better would be retry-connect.
+    time.sleep(2)
+
+    yield base_url
+
+    server.should_exit = True
+    thread.join()
+
+
+@pytest_asyncio.fixture
+async def teletest_client(server) -> AsyncGenerator[TeletestApiClient, None]:
     """
     Fixture to provide the TeletestApiClient instance.
-    Uses FastAPI's TestClient as the underlying session/transport.
     """
-    with TestClient(app) as client:
-        # We need to adapt the TestClient to look like a requests.Session
-        # TestClient has .post and .get methods which are sufficient for TeletestApiClient
-        # However, TeletestApiClient uses requests.Session() by default which is not a context manager in the same way,
-        # or rather, TeletestApiClient.__init__ expects a session.
-        # We pass the TestClient instance as the session.
-
-        # TestClient methods return httpx.Response (or requests.Response in older versions)
-        # TeletestApiClient expects .json() and .raise_for_status() on the response, which both support.
-
-        yield TeletestApiClient(base_url="", session=client)
+    async with aiohttp.ClientSession() as session:
+        yield TeletestApiClient(base_url=server, session=session)
