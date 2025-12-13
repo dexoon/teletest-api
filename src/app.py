@@ -20,6 +20,7 @@ from .models import (
     MessageButton,
     TelegramCredentialsRequest,
     ResponseType,
+    User,
 )
 
 load_dotenv()  # Load environment variables from .env file
@@ -378,3 +379,22 @@ async def get_updates(
                     reply_keyboard=reply_kb,
                 ))
     return GetMessagesResponse(messages=processed_messages)
+
+
+@app.get("/get-me", response_model=User)
+async def get_me(
+    creds: TelegramCredentialsRequest = Depends(get_header_credentials),
+) -> User:
+    logger.info("get_me called")
+    api_id = creds.api_id
+    api_hash = creds.api_hash
+    session_string = creds.session_string
+    async with get_telegram_client(api_id, api_hash, session_string) as current_client:
+        me = await current_client.get_me()
+        return User(
+            user_id=me.id,
+            username=me.username,
+            first_name=me.first_name,
+            last_name=me.last_name,
+            phone=me.phone,
+        )

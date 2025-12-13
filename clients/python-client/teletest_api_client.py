@@ -70,6 +70,15 @@ class GetMessagesResponse:
     messages: List[BotResponse]
 
 
+@dataclass
+class User:
+    user_id: int
+    username: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+
+
 class TeletestApiClient:
     """Asynchronous client for teletest-api using aiohttp."""
 
@@ -169,3 +178,10 @@ class TeletestApiClient:
         )
         messages = [self._parse_bot_response(m) for m in resp["messages"]]
         return GetMessagesResponse(messages=messages)
+
+    async def get_me(
+        self,
+        creds: Optional[TelegramCredentialsRequest] = None,
+    ) -> User:
+        resp = await self._get("/get-me", {}, creds)
+        return User(**resp)
